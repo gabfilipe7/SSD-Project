@@ -8,23 +8,26 @@ import java.security.Security;
 
 public class Block {
 
+    private long Index;
     private String BlockHash;
     private String PreviousBlockHash;
     private long Timestamp;
-    private List<Integer> Transactions;
+    private List<Transaction> Transactions;
     private long Nonce;
+    private int Difficulty;
 
-    public Block(String previousBlockHash, List<Integer> transactions ) {
+    public Block(long index, String previousBlockHash, List<Transaction> transactions ) {
         this.PreviousBlockHash = previousBlockHash;
         this.Timestamp = new Date().getTime();
         this.Transactions = transactions;
         this.Nonce = 0;
-        this.BlockHash = this.CalculateBlockHash();
+        this.Index = index;
+        this.Difficulty = 3;
     }
 
-    private String CalculateBlockHash(){
+    public String CalculateBlockHash(){
         try{
-            String content = this.PreviousBlockHash + this.Nonce + this.Timestamp + this.Transactions;
+            String content = this.PreviousBlockHash + this.Index + this.Nonce + this.Timestamp + this.Transactions;
 
             Security.addProvider(new BouncyCastleProvider());
 
@@ -44,6 +47,21 @@ public class Block {
         }
     }
 
+    public void mine(){
+        String pattern = "0".repeat(this.Difficulty);
+        while (true) {
+            String hash = this.CalculateBlockHash();
+            if (hash.startsWith(pattern)) {
+                this.BlockHash = hash;
+                break;
+            }
+            this.Nonce++;
+        }
+        System.out.println("The block was mined! ");
+        System.out.println(" Nonce: " + this.Nonce + "  Hash: " + this.BlockHash);
+
+    }
+
     public long getTimestamp() {
         return Timestamp;
     }
@@ -56,11 +74,15 @@ public class Block {
         return BlockHash;
     }
 
+    public int getDifficulty() {
+        return Difficulty;
+    }
+
     public String getPreviousBlockHash() {
         return PreviousBlockHash;
     }
 
-    public List<Integer> getTransactions() {
+    public List<Transaction> getTransactions() {
         return Transactions;
     }
 }

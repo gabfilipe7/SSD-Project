@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package com.kademlia.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.kademlia.grpc";
+option java_outer_classname = "KademliaProto";
+
+service KademliaService {
+  rpc Ping (PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string node_id = 1;
+}
+
+message PingResponse {
+  bool is_alive = 1;
+}

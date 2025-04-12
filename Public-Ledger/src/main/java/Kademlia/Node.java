@@ -9,6 +9,10 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.Security;
 import java.security.spec.ECGenParameterSpec;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import Kademlia.KBucket;
 import org.bouncycastle.asn1.x9.X9ECParameters;
@@ -27,6 +31,7 @@ public class Node {
     private int K;
     private int port;
     private ArrayList<KBucket> routingTable;
+    private ExecutorService executorService;
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -84,80 +89,144 @@ public class Node {
         return true;
     }
 
-    /*public List<Node> findClosestNodes(BigInteger targetNodeId, int sizeNumber) {
 
-        int index = getTargetBucketIndex(targetNodeId);
-        KBucket bucket = this.routingTable.get(index);
 
-        List<Node> closestNodes = new ArrayList<>(bucket.getNodes());
+    public List<Node> findClosestNodes(BigInteger targetNodeId, int sizeNumber) {
+        List<Node> closestNodes = new ArrayList<>();
 
+        int targetBucketIndex = getTargetBucketIndex(targetNodeId);
+
+        int i = 0;
+        int j = 1;
         Utils nodeComparator = new Utils(this);
+
+        for (int it = 0; it < this.routingTable.size(); it++) {
+
+            if (targetBucketIndex + i < this.routingTable.size()) {
+                KBucket bucket = this.routingTable.get(targetBucketIndex + i);
+                if (bucket != null && !bucket.getNodes().isEmpty()) {
+                    for (Node node : bucket.getNodes()) {
+                        if (closestNodes.size() < sizeNumber) {
+                            closestNodes.add(node);
+                        } else {
+                            closestNodes.sort(nodeComparator);
+                            return closestNodes.subList(0, sizeNumber);
+                        }
+                    }
+                }
+                i++;
+            }
+
+            if (targetBucketIndex - j >= 0) {
+                KBucket bucket = this.routingTable.get(targetBucketIndex - j);
+                if (bucket != null && !bucket.getNodes().isEmpty()) {
+                    for (Node node : bucket.getNodes()) {
+                        if (closestNodes.size() < sizeNumber) {
+                            closestNodes.add(node);
+                        } else {
+                            closestNodes.sort(nodeComparator);
+                            return closestNodes.subList(0, sizeNumber);
+                        }
+                    }
+                }
+                j++;
+            }
+        }
+
+        if (closestNodes.isEmpty()) {
+            return null;
+        }
 
         closestNodes.sort(nodeComparator);
 
         return closestNodes.subList(0, Math.min(sizeNumber, closestNodes.size()));
-    }*/
+    }
 
-    public List<Node> findClosestNodes(BigInteger targetId) {
-        List<Node> orderedNodes = new ArrayList<>();
+    public CompletableFuture<Optional<Node>> findNode(BigInteger targetId) {
+        List<Node> initialPeers = findClosestNodes(targetId, this.K);
+        Set<Node> alreadyChecked = new HashSet<>();
 
-        for (KBucket bucket : this.routingTable) {
-            orderedNodes.addAll(bucket.getNodes());
+        return findNodeRecursive(targetId, initialPeers, alreadyChecked,20);
+    }
+
+    private CompletableFuture<Optional<Node>> findNodeRecursive(
+            BigInteger targetId,
+            List<Node> peers,
+            Set<Node> alreadyChecked,
+            int ttl
+    ) {
+        if (ttl <= 0) {
+            List<Node> closestNodes = new ArrayList<>(alreadyChecked);
+            return CompletableFuture.completedFuture(Optional.ofNullable(closestNodes.isEmpty() ? null : closestNodes.get(0)));
         }
 
         Utils nodeComparator = new Utils(this);
+        peers.sort(nodeComparator);
 
-        orderedNodes.sort(nodeComparator);
+        List<CompletableFuture<List<Node>>> tasks = new ArrayList<>();
+        Queue<Node> closerPeers = new ConcurrentLinkedQueue<>();
 
-        return orderedNodes.subList(0, this.K);
-    }
+        for (Node peer : peers) {
+            if (!alreadyChecked.contains(peer)) {
+                alreadyChecked.add(peer);
 
-    public List<Node> findNode(BigInteger targetNodeId) {
-        Set<Node> nodesToQuery = new HashSet<>();
-        List<Node> resultNodes = new ArrayList<>();
-
-        List<Node> closestNodes = findClosestNodes(targetNodeId);
-        nodesToQuery.addAll(closestNodes);
-
-
-        Set<Node> queriedNodes = new HashSet<>();
-
-        while (!nodesToQuery.isEmpty() && resultNodes.size() < this.K) {
-
-            Node node = nodesToQuery.iterator().next();
-            nodesToQuery.remove(node);
-
-
-            if (queriedNodes.contains(node)) {
-                continue;
-            }
-
-            queriedNodes.add(node);
-
-
-            List<Node> nodesFromResponse = sendFindNodeRequest(node, targetNodeId);
-
-            for (Node newNode : nodesFromResponse) {
-                if (!queriedNodes.contains(newNode)) {
-                    nodesToQuery.add(newNode);
-                }
-            }
-
-            for (Node newNode : nodesFromResponse) {
-                if (!resultNodes.contains(newNode) && !newNode.getId().equals(targetNodeId)) {
-                    resultNodes.add(newNode);
-                }
+                tasks.add(CompletableFuture.supplyAsync(() -> {
+                    try {
+                        List<Node> response = sendFindNodeRequest(peer, targetId).join();
+                        if (!response.isEmpty() && response.get(0).getId().compareTo(targetId) == 0) {
+                            return List.of(response.get(0));
+                        } else {
+                            closerPeers.addAll(response);
+                            return List.of();
+                        }
+                    } catch (Exception e) {
+                        return List.of();
+                    }
+                }, executorService));
             }
         }
 
-        return resultNodes;
+        return CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0]))
+                .thenCompose(v -> {
+                    for (CompletableFuture<List<Node>> task : tasks) {
+                        List<Node> result = task.join();
+                        if (!result.isEmpty()) {
+                            Node firstNode = result.get(0);
+                            // Check if the first node is the target
+                            if (firstNode.getId().equals(targetId)) {
+                                return CompletableFuture.completedFuture(Optional.of(firstNode));
+                            }
+                        }
+                    }
+
+                    List<Node> closerPeersList = new ArrayList<>();
+                    for (CompletableFuture<List<Node>> task : tasks) {
+                        List<Node> result = task.join();
+                        closerPeersList.addAll(result);
+                    }
+
+                    Set<Node> uniquePeers = closerPeersList.stream()
+                            .filter(n -> !alreadyChecked.contains(n))
+                            .collect(Collectors.toSet());
+
+                    return findNodeRecursive(targetId, new ArrayList<>(uniquePeers), alreadyChecked, ttl - 1)
+                            .thenApply(optionalNode -> {
+                                if (optionalNode.isEmpty()) {
+                                    List<Node> closestNodes = new ArrayList<>(alreadyChecked);
+                                    return Optional.ofNullable(closestNodes.isEmpty() ? null : closestNodes.get(0));
+                                }
+                                return optionalNode;
+                            });
+                });
     }
 
-    private List<Node> sendFindNodeRequest(Node node, BigInteger targetNodeId) {
 
-        return null;
+
+    private CompletableFuture<List<Node>> sendFindNodeRequest(Node peer, BigInteger targetId) {
+        return CompletableFuture.supplyAsync(() -> {
+            return peer.findClosestNodes(targetId, this.K);
+        });
     }
-
 
 
     private static KeyPair generateKeys()  {

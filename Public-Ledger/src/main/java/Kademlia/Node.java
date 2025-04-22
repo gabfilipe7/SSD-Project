@@ -14,7 +14,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
+import Blockchain.Transaction;
+import Communications.RpcClient;
 import Kademlia.KBucket;
+import com.google.protobuf.ByteString;
+import com.kademlia.grpc.GossipResponse;
+import com.kademlia.grpc.KademliaServiceGrpc;
+import com.kademlia.grpc.TransactionMessage;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import org.bouncycastle.asn1.x9.X9ECParameters;
 import org.bouncycastle.asn1.x9.X9ECParametersHolder;
 import org.bouncycastle.crypto.params.ECKeyGenerationParameters;
@@ -32,6 +40,7 @@ public class Node {
     private int port;
     private ArrayList<KBucket> routingTable;
     private ExecutorService executorService;
+    
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -59,8 +68,12 @@ public class Node {
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
 
-
+    public Node(BigInteger nodeId, String ipAddress, int port){
+        this.ipAddress = ipAddress;
+        this.port = port;
+        this.nodeId = nodeId;
     }
 
     public BigInteger xorDistance(BigInteger other) {
@@ -89,7 +102,13 @@ public class Node {
         return true;
     }
 
-
+    public List<Node> getAllNeighbours() {
+        List<Node> allNeighbours = new ArrayList<>();
+        for (KBucket bucket : routingTable) {
+            allNeighbours.addAll(bucket.getNodes());
+        }
+        return allNeighbours;
+    }
 
     public List<Node> findClosestNodes(BigInteger targetNodeId, int sizeNumber) {
         List<Node> closestNodes = new ArrayList<>();
@@ -142,93 +161,6 @@ public class Node {
         return closestNodes.subList(0, Math.min(sizeNumber, closestNodes.size()));
     }
 
-    public CompletableFuture<Optional<Node>> findNode(BigInteger targetId) {
-        List<Node> initialPeers = findClosestNodes(targetId, this.K);
-        Set<Node> alreadyChecked = new HashSet<>();
-
-        return findNodeRecursive(targetId, initialPeers, alreadyChecked,20);
-    }
-
-    private CompletableFuture<Optional<Node>> findNodeRecursive(
-            BigInteger targetId,
-            List<Node> peers,
-            Set<Node> alreadyChecked,
-            int ttl
-    ) {
-        if (ttl <= 0) {
-            List<Node> closestNodes = new ArrayList<>(alreadyChecked);
-            return CompletableFuture.completedFuture(Optional.ofNullable(closestNodes.isEmpty() ? null : closestNodes.get(0)));
-        }
-
-        Utils nodeComparator = new Utils(this);
-        peers.sort(nodeComparator);
-
-        List<CompletableFuture<List<Node>>> tasks = new ArrayList<>();
-        Queue<Node> closerPeers = new ConcurrentLinkedQueue<>();
-
-        for (Node peer : peers) {
-            if (!alreadyChecked.contains(peer)) {
-                alreadyChecked.add(peer);
-
-                tasks.add(CompletableFuture.supplyAsync(() -> {
-                    try {
-                        List<Node> response = sendFindNodeRequest(peer, targetId).join();
-                        if (!response.isEmpty() && response.get(0).getId().compareTo(targetId) == 0) {
-                            return List.of(response.get(0));
-                        } else {
-                            closerPeers.addAll(response);
-                            return List.of();
-                        }
-                    } catch (Exception e) {
-                        return List.of();
-                    }
-                }, executorService));
-            }
-        }
-
-        return CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0]))
-                .thenCompose(v -> {
-                    for (CompletableFuture<List<Node>> task : tasks) {
-                        List<Node> result = task.join();
-                        if (!result.isEmpty()) {
-                            Node firstNode = result.get(0);
-                            // Check if the first node is the target
-                            if (firstNode.getId().equals(targetId)) {
-                                return CompletableFuture.completedFuture(Optional.of(firstNode));
-                            }
-                        }
-                    }
-
-                    List<Node> closerPeersList = new ArrayList<>();
-                    for (CompletableFuture<List<Node>> task : tasks) {
-                        List<Node> result = task.join();
-                        closerPeersList.addAll(result);
-                    }
-
-                    Set<Node> uniquePeers = closerPeersList.stream()
-                            .filter(n -> !alreadyChecked.contains(n))
-                            .collect(Collectors.toSet());
-
-                    return findNodeRecursive(targetId, new ArrayList<>(uniquePeers), alreadyChecked, ttl - 1)
-                            .thenApply(optionalNode -> {
-                                if (optionalNode.isEmpty()) {
-                                    List<Node> closestNodes = new ArrayList<>(alreadyChecked);
-                                    return Optional.ofNullable(closestNodes.isEmpty() ? null : closestNodes.get(0));
-                                }
-                                return optionalNode;
-                            });
-                });
-    }
-
-
-
-    private CompletableFuture<List<Node>> sendFindNodeRequest(Node peer, BigInteger targetId) {
-        return CompletableFuture.supplyAsync(() -> {
-            return peer.findClosestNodes(targetId, this.K);
-        });
-    }
-
-
     private static KeyPair generateKeys()  {
 
         try{
@@ -246,6 +178,14 @@ public class Node {
         }
     }
 
-
+    public int getK(){
+        return this.K;
+    }
+    public String getIpAddress(){
+        return this.ipAddress;
+    }
+    public int getPort(){
+        return this.port;
+    }
 
 }

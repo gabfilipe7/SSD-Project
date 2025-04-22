@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package com.kademlia.grpc;
+
+option java_multiple_files = true;
+option java_package = "com.kademlia.grpc";
+option java_outer_classname = "KademliaProto";
+
+service KademliaService {
+  rpc Ping (PingRequest) returns (PingResponse);
+  rpc FindNode (FindNodeRequest) returns (FindNodeResponse);
+  rpc Store(StoreRequest) returns (StoreResponse);
+  rpc Gossip(TransactionMessage) returns (GossipResponse);
+}
+
+message PingRequest {
+  string node_id = 1;
+}
+
+message PingResponse {
+  bool is_alive = 1;
+}
+
+message FindNodeRequest {
+  string target_id = 1;
+}
+
+message NodeInfo {
+  string id = 1;
+  string ip = 2;
+  int32 port = 3;
+}
+
+message FindNodeResponse {
+  repeated NodeInfo nodes = 1;
+}
+
+message SourceAddress {
+  bytes id = 1;
+  string ip = 2;
+  uint32 port = 3;
+}
+message DestinationAddress {
+  string ip = 1;
+  uint32 port = 2;
+}
+
+message StoreRequest {
+  bytes key = 1;
+  string value = 2;
+  SourceAddress src = 3;
+  DestinationAddress dst = 4;
+  uint32 ttl = 5;
+}
+
+enum StoreResponseType {
+  UNKNOWN_TYPE_STORE = 0;
+  LOCAL_STORE = 1;
+  REMOTE_STORE = 2;
+}
+
+message StoreResponse {
+  StoreResponseType response_type = 1;
+}
+
+message TransactionMessage {
+  Transaction transactionData = 1;
+  bytes signature = 2;
+}
+
+message Transaction {
+  string transactionId = 1;
+  uint32 type = 2;
+  string timestamp = 3;
+  bytes senderPublicKey = 4;
+  string from = 5;
+  string to = 6;
+}
+
+message GossipResponse {
+  bool success = 1;
+}

@@ -8,13 +8,13 @@ import java.security.Security;
 
 public class Block {
 
-    private long Index;
+    private final long Index;
     private String BlockHash;
-    private String PreviousBlockHash;
-    private long Timestamp;
-    private List<Transaction> Transactions;
+    private final String PreviousBlockHash;
+    private final long Timestamp;
+    private final List<Transaction> Transactions;
     private long Nonce;
-    private int Difficulty;
+    private final int Difficulty;
 
     public Block(long index, String previousBlockHash, List<Transaction> transactions ) {
         this.PreviousBlockHash = previousBlockHash;

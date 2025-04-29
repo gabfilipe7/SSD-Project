@@ -1,5 +1,6 @@
 package Communications;
 
+import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Kademlia.Utils;
 import com.google.protobuf.ByteString;
@@ -8,7 +9,9 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
-
+import io.grpc.stub.StreamObserver;
+import java.util.stream.Collectors;
+import Blockchain.Block;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -180,7 +183,77 @@ public class RpcClient {
         return response.getResponseType();
     }
 
-    public static TransactionMessage gossip(Transaction transaction, byte[] signature, Node localNode) {
+    public static BlockMessage gossipBlock(Block block, byte[] signature, Node localNode) {
+        BlockMessage blockMessage;
+
+        try {
+            com.kademlia.grpc.Block protoBlock = com.kademlia.grpc.Block.newBuilder()
+                    .setBlockId(block.getIndex())
+                    .setPreviousHash(block.getPreviousBlockHash())
+                    .setTimestamp(block.getTimestamp())
+                    .setNonce(block.getNonce())
+                    .setHash(block.getBlockHash())
+                    .addAllTransactions(
+                            block.getTransactions().stream().map(tx ->
+                                    com.kademlia.grpc.Transaction.newBuilder()
+                                            .setTransactionId(tx.getTransactionId().toString())
+                                            .setType(tx.getType().ordinal())
+                                            .setTimestamp(tx.getTimestamp().toString())
+                                            .setSenderPublicKey(ByteString.copyFrom(tx.getSender().getEncoded()))
+                                            .setFrom("PLACEHOLDER")
+                                            .setTo("PLACEHOLDER")
+                                            .build()
+                            ).collect(Collectors.toList())
+                    )
+                    .build();
+
+            blockMessage = BlockMessage.newBuilder()
+                    .setBlockData(protoBlock)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
+
+        } catch (Exception e) {
+            System.err.println("Failed to convert Block to Protobuf: " + e.getMessage());
+            return null;
+        }
+
+        for (Node neighbor : localNode.getAllNeighbours()) {
+            ManagedChannel channel = null;
+            try {
+                channel = ManagedChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())
+                        .usePlaintext()
+                        .build();
+
+                KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+                GossipResponse response = stub.withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        .gossipBlock(blockMessage);
+
+                if (response.getSuccess()) {
+                    System.out.println("Successfully gossiped block to " + neighbor.getId());
+                } else {
+                    System.out.println("Failed to gossip block to " + neighbor.getId());
+                }
+
+            } catch (StatusRuntimeException e) {
+                System.err.println("gRPC error while gossiping to " + neighbor.getId() + ": " + e.getStatus().getDescription());
+            } catch (Exception e) {
+                System.err.println("Error while gossiping to " + neighbor.getId() + ": " + e.getMessage());
+            } finally {
+                if (channel != null) {
+                    try {
+                        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        System.err.println("Channel shutdown interrupted: " + e.getMessage());
+                    }
+                }
+            }
+        }
+
+        return blockMessage;
+    }
+
+    public static TransactionMessage gossipTransaction(Transaction transaction, byte[] signature, Node localNode) {
         TransactionMessage transactionMessage;
 
         try {
@@ -213,7 +286,7 @@ public class RpcClient {
                 KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
                 GossipResponse response = stub.withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                        .gossip(transactionMessage);
+                        .gossipTransaction(transactionMessage);
 
                 if (response.getSuccess()) {
                     System.out.println("Successfully gossiped transaction to " + neighbor.getId());
@@ -238,5 +311,7 @@ public class RpcClient {
 
         return transactionMessage;
     }
+
+
 
 }

@@ -7,10 +7,12 @@ option java_package = "com.kademlia.grpc";
 option java_outer_classname = "KademliaProto";
 
 service KademliaService {
-  rpc Ping (PingRequest) returns (PingResponse);
-  rpc FindNode (FindNodeRequest) returns (FindNodeResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc FindNode(FindNodeRequest) returns (FindNodeResponse);
   rpc Store(StoreRequest) returns (StoreResponse);
-  rpc Gossip(TransactionMessage) returns (GossipResponse);
+  rpc GossipTransaction(TransactionMessage) returns (GossipResponse);
+  rpc GossipBlock(BlockMessage) returns (GossipResponse);
+
 }
 
 message PingRequest {
@@ -80,3 +82,18 @@ message Transaction {
 message GossipResponse {
   bool success = 1;
 }
+
+message Block {
+  int64 blockId = 1;
+  string previousHash = 2;
+  int64 timestamp = 3;
+  repeated Transaction transactions = 4;
+  int64 nonce = 5;
+  string hash = 6;
+}
+
+message BlockMessage {
+  Block blockData = 1;
+  bytes signature = 2;
+}
+

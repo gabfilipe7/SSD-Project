@@ -14,7 +14,7 @@ public class Block {
     private final long Timestamp;
     private final List<Transaction> Transactions;
     private long Nonce;
-    private final int Difficulty;
+    private final int Difficulty = 4;
 
     public Block(long index, String previousBlockHash, List<Transaction> transactions ) {
         this.PreviousBlockHash = previousBlockHash;
@@ -22,7 +22,21 @@ public class Block {
         this.Transactions = transactions;
         this.Nonce = 0;
         this.Index = index;
-        this.Difficulty = 3;
+    }
+
+
+    public Block(long index,
+                 String blockHash,
+                 String previousBlockHash,
+                 long timestamp,
+                 List<Transaction> transactions,
+                 long nonce) {
+        this.Index = index;
+        this.BlockHash = blockHash;
+        this.PreviousBlockHash = previousBlockHash;
+        this.Timestamp = timestamp;
+        this.Transactions = transactions;
+        this.Nonce = nonce;
     }
 
     public String CalculateBlockHash(){
@@ -57,10 +71,9 @@ public class Block {
             }
             this.Nonce++;
         }
-        System.out.println("The block was mined! ");
-        System.out.println(" Nonce: " + this.Nonce + "  Hash: " + this.BlockHash);
-
     }
+
+
 
     public long getTimestamp() {
         return Timestamp;
@@ -80,6 +93,10 @@ public class Block {
 
     public String getPreviousBlockHash() {
         return PreviousBlockHash;
+    }
+
+    public long getIndex() {
+        return Index;
     }
 
     public List<Transaction> getTransactions() {

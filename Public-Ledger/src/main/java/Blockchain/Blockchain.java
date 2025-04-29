@@ -1,5 +1,6 @@
 package Blockchain;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -32,6 +33,11 @@ public class Blockchain {
         this.chain.add(newBlock);
     }
 
+    public void AddNewBlock(Block block) {
+        this.chain.add(block);
+    }
+
+
     public boolean validateBlockChain(){
 
         for(int i = 1; i < chain.size(); i++){
@@ -59,4 +65,38 @@ public class Blockchain {
         int lastBlockIndex = this.chain.size() - 1;
         return this.chain.get(lastBlockIndex);
     }
+
+    public boolean Contains(long blockId) {
+        for (Block block : this.chain) {
+            if (block.getIndex() == (blockId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    public boolean verifyBlock(Block block) {
+
+        Block lastBlock = GetLastBlock();
+        if (!block.getPreviousBlockHash().equals(lastBlock.getBlockHash())) {
+            return false;
+        }
+
+        for (Transaction tr : block.getTransactions()) {
+            if (!tr.validateTransaction()) {
+                return false;
+            }
+        }
+
+        String computedHash = block.CalculateBlockHash();
+        if (!computedHash.equals(block.getBlockHash())) {
+            return false;
+        }
+
+        if (!computedHash.startsWith("0".repeat(block.getDifficulty()))) {
+            return false;
+        }
+
+        return true;
+    }
+
 }

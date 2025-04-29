@@ -1,9 +1,12 @@
 package Blockchain;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.util.Base64;
 
 import java.time.Instant;
+import java.util.Base64;
 import java.util.UUID;
 
 
@@ -19,6 +22,7 @@ public class Transaction {
     private Instant timestamp;
     private PublicKey sender;
     private TransactionType type;
+    private byte[] signature;
 
     private UUID auctionId;
     private String itemDescription;
@@ -70,7 +74,7 @@ public class Transaction {
         return this;
     }
 
-    public boolean validate(byte[] signature) {
+    public boolean validateTransaction() {
         try {
             if (this.getTransactionId() == null) {
                 return false;
@@ -84,21 +88,59 @@ public class Transaction {
                 return false;
             }
 
+            Security.addProvider(new BouncyCastleProvider());
 
-            PublicKey senderPublicKey = this.getSender();
+            String data = transactionId.toString()
+                    + timestamp.toString()
+                    + Base64.getEncoder().encodeToString(sender.getEncoded())
+                    + type.toString()
+                    + auctionId.toString()
+                    + itemDescription
+                    + startTime.toString()
+                    + endTime.toString()
+                    + bidAmount.toString();
 
-            byte[] dataToVerify = this.getTransactionId().toString().getBytes();
+            byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
-            Signature sig = Signature.getInstance("SHA256withRSA", "BC");
+            Signature verifier = Signature.getInstance("SHA256withRSA", "BC");
+            verifier.initVerify(sender);
+            verifier.update(message);
 
-            sig.initVerify(senderPublicKey);
-            sig.update(dataToVerify);
-
-            return sig.verify(signature);
-
+            return verifier.verify(this.signature);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            return false;
         }
+    }
+
+
+    public void signTransaction(PrivateKey privateKey) {
+        try {
+            Security.addProvider(new BouncyCastleProvider());
+
+            String data = transactionId.toString()
+                    + timestamp.toString()
+                    + Base64.getEncoder().encodeToString(sender.getEncoded())
+                    + type.toString()
+                    + auctionId.toString()
+                    + itemDescription
+                    + startTime.toString()
+                    + endTime.toString()
+                    + bidAmount.toString();
+
+            byte[] message = data.getBytes(StandardCharsets.UTF_8);
+
+            Signature signature = Signature.getInstance("SHA256withRSA", "BC");
+            signature.initSign(privateKey);
+            signature.update(message);
+
+            this.signature = signature.sign();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to sign transaction", e);
+        }
+    }
+
+    public void setSignature(byte[] signature) {
+        this.signature = signature;
     }
 
     public UUID getTransactionId() { return transactionId; }

@@ -21,7 +21,7 @@ public class Blockchain {
         chain.add(genesisBlock);
     }
 
-    public void AddNewBlock(List<Transaction> transactions) {
+  /*  public void AddNewBlock(List<Transaction> transactions) {
 
         Block lastBlock = this.GetLastBlock();
 
@@ -31,7 +31,7 @@ public class Blockchain {
         newBlock.mine();
 
         this.chain.add(newBlock);
-    }
+    }*/
 
     public void AddNewBlock(Block block) {
         this.chain.add(block);
@@ -61,7 +61,7 @@ public class Blockchain {
         return true;
     }
 
-    private Block GetLastBlock(){
+    public Block GetLastBlock(){
         int lastBlockIndex = this.chain.size() - 1;
         return this.chain.get(lastBlockIndex);
     }

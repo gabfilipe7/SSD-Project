@@ -5,6 +5,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
+import java.util.function.BooleanSupplier;
 
 public class Block {
 
@@ -61,9 +62,9 @@ public class Block {
         }
     }
 
-    public void mine(){
+    public void mine(BooleanSupplier shouldContinueMining){
         String pattern = "0".repeat(this.Difficulty);
-        while (true) {
+        while (shouldContinueMining.getAsBoolean()) {
             String hash = this.CalculateBlockHash();
             if (hash.startsWith(pattern)) {
                 this.BlockHash = hash;

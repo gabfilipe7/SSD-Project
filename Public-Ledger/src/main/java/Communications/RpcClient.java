@@ -183,7 +183,7 @@ public class RpcClient {
         return response.getResponseType();
     }
 
-    public static BlockMessage gossipBlock(Block block, byte[] signature, Node localNode) {
+    public static BlockMessage gossipBlock(Block block, Node localNode) {
         BlockMessage blockMessage;
 
         try {
@@ -209,7 +209,6 @@ public class RpcClient {
 
             blockMessage = BlockMessage.newBuilder()
                     .setBlockData(protoBlock)
-                    .setSignature(ByteString.copyFrom(signature))
                     .build();
 
         } catch (Exception e) {

@@ -40,7 +40,7 @@ public class Node {
     private int port;
     private ArrayList<KBucket> routingTable;
     private ExecutorService executorService;
-    
+    private boolean isMiner;
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -176,6 +176,10 @@ public class Node {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public boolean isMiner(){
+        return this.isMiner;
     }
 
     public int getK(){

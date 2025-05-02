@@ -27,10 +27,12 @@ public class RpcClient {
     private final KademliaServiceGrpc.KademliaServiceBlockingStub stub;
     private ExecutorService executorService;
     private final Node localNode;
+    private final Blockchain blockchain;
 
 
-    public RpcClient(String host, int port, Node localNode) {
+    public RpcClient(String host, int port, Node localNode,Blockchain blockchain) {
         this.localNode = localNode;
+        this.blockchain = blockchain;
         this.channel = ManagedChannelBuilder
                 .forAddress(host, port)
                 .usePlaintext()
@@ -311,6 +313,73 @@ public class RpcClient {
         return transactionMessage;
     }
 
+    public static void updateBlockChain(Node localnode, long startIndex) {
+        List<Node> neighbors = localnode.getAllNeighbours();
 
+        Map<String, List<Block>> chainsByHash = new HashMap<>();
+
+        for (Node neighbor : neighbors) {
+            try {
+                List<Block> neighborBlocks = RpcClient.requestBlocksFrom(neighbor, startIndex);
+
+                if (neighborBlocks.isEmpty()) {
+                    continue;
+                }
+
+                Blockchain blockChain = new Blockchain(neighborBlocks);
+
+                if(!blockChain.validateBlockChain()){
+                    continue;
+                }
+
+                String chainHash = Utils.calculateChainHash(blockChain);
+                chainsByHash.computeIfAbsent(chainHash, k -> new ArrayList<>()).addAll(neighborBlocks);
+
+            } catch (Exception e) {
+                System.err.println("Failed to get blocks from neighbor " + neighbor.getId() + ": " + e.getMessage());
+            }
+        }
+
+        if (chainsByHash.isEmpty()) {
+            System.out.println("No valid chains received.");
+            return;
+        }
+
+        String mostCommonChainHash = chainsByHash.entrySet()
+                .stream()
+                .max(Comparator.comparingInt(e -> e.getValue().size()))
+                .map(Map.Entry::getKey)
+                .orElse(null);
+
+        if (mostCommonChainHash != null) {
+            List<Block> bestChain = chainsByHash.get(mostCommonChainHash);
+
+            this.blockchain.replaceFromIndex(startIndex, bestChain);
+            System.out.println("Blockchain synchronized with majority chain.");
+        }
+    }
+
+    public static List<Block> requestBlocksFrom(Node peer, long startIndex) {
+        ManagedChannel channel = ManagedChannelBuilder
+                .forAddress(peer.getIpAddress(), peer.getPort())
+                .usePlaintext()
+                .build();
+        KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+        GetBlocksRequest request = GetBlocksRequest.newBuilder()
+                .setStartIndex(startIndex)
+                .build();
+
+        GetBlocksResponse response = stub.getBlocksFrom(request);
+        channel.shutdown();
+
+        List<Block> blocks = new ArrayList<>();
+
+        for (com.kademlia.grpc.Block blockMessage : response.getBlocksList()) {
+            blocks.add(Utils.convertResponseToBlock(blockMessage));
+        }
+
+        return blocks;
+    }
 
 }

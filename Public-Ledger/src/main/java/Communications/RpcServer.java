@@ -76,25 +76,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             SourceAddress src = request.getSrc();
             DestinationAddress dst = request.getDst();
 
-      /*     // Log/store origin info (useful for Kademlia routing table updates)
-            System.out.printf("Received STORE request from Node(ID=%s) at %s:%d%n",
-                    bytesToHex(src.getId().toByteArray()), src.getIp(), src.getPort());
-
-            // ✅ Simulated storage logic — you should store it in your local DHT map or DB
-            boolean storedLocally = storeLocally(key, value, ttl);
-
-            // Prepare and send response
-            StoreResponseType type = storedLocally
-                    ? StoreResponseType.LOCAL_STORE
-                    : StoreResponseType.UNKNOWN_TYPE_STORE;
-
-            StoreResponse response = StoreResponse.newBuilder()
-                    .setResponseType(type)
-                    .build();
-
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-*/
         } catch (Exception e) {
             e.printStackTrace();
             responseObserver.onError(e);
@@ -179,7 +160,8 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     RpcClient.gossipBlock(block,this.localNode);
                 }
                 else if (!blockchain.Contains(receivedBlock.getBlockId() - 1)) {
-                    RpcClient.requestBlocks(localNode, receivedBlock.getBlockId());
+                    stopMining();
+                    RpcClient.updateBlockChain(this.localNode, blockchain.GetLastBlock().getIndex());
                     responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                     responseObserver.onCompleted();
                     return;
@@ -201,6 +183,27 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             responseObserver.onError(e);
         }
     }
+
+    @Override
+    public void getBlocksFrom(GetBlocksRequest request, StreamObserver<GetBlocksResponse> responseObserver) {
+        long startIndex = request.getStartIndex();
+        List<Block> blocks = blockchain.getBlocksFrom(startIndex);
+
+        List<BlockMessage> blockMessages = new ArrayList<>();
+        for (Block block : blocks) {
+            BlockMessage.Builder blockBuilder = BlockMessage.newBuilder()
+                    .setBlockData(Utils.convertBlockToResponse(block));
+            blockMessages.add(blockBuilder.build());
+        }
+
+        GetBlocksResponse response = GetBlocksResponse.newBuilder()
+                .addAllBlocks(blockMessages)
+                .build();
+
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
 
     public void startMining(Block blockToMine) {
         isMining = true;

@@ -21,6 +21,11 @@ public class Blockchain {
         chain.add(genesisBlock);
     }
 
+    public Blockchain(List<Block> Chain) {
+        this.chain = Chain;
+    }
+
+
   /*  public void AddNewBlock(List<Transaction> transactions) {
 
         Block lastBlock = this.GetLastBlock();
@@ -74,6 +79,7 @@ public class Blockchain {
         }
         return false;
     }
+
     public boolean verifyBlock(Block block) {
 
         Block lastBlock = GetLastBlock();
@@ -98,5 +104,37 @@ public class Blockchain {
 
         return true;
     }
+
+    public List<Block> getBlocksFrom(long startIndex) {
+        List<Block> result = new ArrayList<>();
+        for (Block block : this.chain) {
+            if (block.getIndex() >= startIndex) {
+                result.add(block);
+            }
+        }
+        return result;
+    }
+
+    public List<Block> getChain() {
+        return this.chain;
+    }
+
+    public synchronized void replaceFromIndex(long startIndex, List<Block> newBlocks) {
+        try{
+            if (startIndex < 0 || startIndex > chain.size()) {
+                throw new IllegalArgumentException("Invalid start index");
+            }
+
+            while (chain.size() > startIndex) {
+                chain.remove(chain.size() - 1);
+            }
+
+            chain.addAll(newBlocks);
+
+        }catch(Exception ex){
+            return;
+        }
+    }
+
 
 }

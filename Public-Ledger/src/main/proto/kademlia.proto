@@ -12,7 +12,7 @@ service KademliaService {
   rpc Store(StoreRequest) returns (StoreResponse);
   rpc GossipTransaction(TransactionMessage) returns (GossipResponse);
   rpc GossipBlock(BlockMessage) returns (GossipResponse);
-
+  rpc GetBlocksFrom (GetBlocksRequest) returns (GetBlocksResponse);
 }
 
 message PingRequest {
@@ -95,5 +95,13 @@ message Block {
 message BlockMessage {
   Block blockData = 1;
   bytes signature = 2;
+}
+
+message GetBlocksRequest {
+  uint64 startIndex = 1;
+}
+
+message GetBlocksResponse {
+  repeated Block blocks = 1;
 }
 

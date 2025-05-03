@@ -41,6 +41,7 @@ public class Node {
     private ArrayList<KBucket> routingTable;
     private ExecutorService executorService;
     private boolean isMiner;
+    private Map<String, String> map;
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -49,7 +50,7 @@ public class Node {
     public Node(String ipAddress, int port, int k) {
         this.ipAddress = ipAddress;
         this.port = port;
-
+        this.map = new HashMap<>();
         this.routingTable = new ArrayList<>(256);
         for (int i = 0; i < 256; i++) {
             this.routingTable.add(new KBucket(k));
@@ -180,6 +181,22 @@ public class Node {
 
     public boolean isMiner(){
         return this.isMiner;
+    }
+
+    public void addKey(String key, String value) {
+        map.put(key, value);
+    }
+
+    public String getValue(String key) {
+        return map.get(key);
+    }
+
+    public boolean removeKey(String key) {
+        if (map.containsKey(key)) {
+            map.remove(key);
+            return true;
+        }
+        return false;
     }
 
     public int getK(){

@@ -165,24 +165,62 @@ public class RpcClient {
         }
     }
 
-    public StoreResponseType storeValue(Node targetNode, byte[] key, String value, Node localNode, int ttl) {
-        StoreRequest request = StoreRequest.newBuilder()
-                .setKey(com.google.protobuf.ByteString.copyFrom(key))
-                .setValue(value)
-                .setTtl(ttl)
-                .setSrc(SourceAddress.newBuilder()
-                        .setId(com.google.protobuf.ByteString.copyFrom(localNode.getId().toByteArray()))
-                        .setIp(localNode.getIpAddress())
-                        .setPort(localNode.getPort())
-                        .build())
-                .setDst(DestinationAddress.newBuilder()
-                        .setIp(targetNode.getIpAddress())
-                        .setPort(targetNode.getPort())
-                        .build())
+    public static boolean storeKeyValue(String ip, int port, String key, String value, int ttl) {
+        ManagedChannel channel = null;
+        try {
+            channel = ManagedChannelBuilder.forAddress(ip, port)
+                    .usePlaintext()
+                    .build();
+
+            KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+            StoreRequest request = StoreRequest.newBuilder()
+                    .setKey(key)
+                    .setValue(value)
+                    .setTtl(ttl)
+                    .build();
+
+            StoreResponse response = stub.store(request);
+
+            return response.getResponseType() == StoreResponseType.LOCAL_STORE;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            if (channel != null) {
+                channel.shutdown();
+            }
+        }
+    }
+    public static Optional<String> findValue(String key, Node node) {
+        ManagedChannel channel = ManagedChannelBuilder
+                .forAddress(node.getIpAddress(), node.getPort())
+                .usePlaintext()
                 .build();
 
-        StoreResponse response = stub.store(request);
-        return response.getResponseType();
+        KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+        try {
+            FindValueRequest request = FindValueRequest.newBuilder()
+                    .setKey(key)
+                    .build();
+
+            FindValueResponse response = stub.findValue(request);
+
+            if (response.getFound()) {
+                return Optional.of(response.getValue());
+            } else {
+                //ver esta parte depois
+                return Optional.empty();
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Optional.empty();
+        } finally {
+            channel.shutdown();
+        }
     }
 
     public static BlockMessage gossipBlock(Block block, Node localNode) {
@@ -313,7 +351,7 @@ public class RpcClient {
         return transactionMessage;
     }
 
-    public static void updateBlockChain(Node localnode, long startIndex) {
+    public static void updateBlockChain(Node localnode, Blockchain blockchain,long startIndex) {
         List<Node> neighbors = localnode.getAllNeighbours();
 
         Map<String, List<Block>> chainsByHash = new HashMap<>();
@@ -354,7 +392,7 @@ public class RpcClient {
         if (mostCommonChainHash != null) {
             List<Block> bestChain = chainsByHash.get(mostCommonChainHash);
 
-            this.blockchain.replaceFromIndex(startIndex, bestChain);
+            blockchain.replaceFromIndex(startIndex, bestChain);
             System.out.println("Blockchain synchronized with majority chain.");
         }
     }

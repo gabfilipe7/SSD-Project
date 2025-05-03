@@ -65,22 +65,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    @Override
-    public void store(StoreRequest request, StreamObserver<StoreResponse> responseObserver) {
-        try {
-
-            byte[] key = request.getKey().toByteArray();
-            String value = request.getValue();
-            int ttl = request.getTtl();
-
-            SourceAddress src = request.getSrc();
-            DestinationAddress dst = request.getDst();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            responseObserver.onError(e);
-        }
-    }
 
     @Override
     public void gossipTransaction(TransactionMessage request, StreamObserver<GossipResponse> responseObserver) {
@@ -161,7 +145,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 }
                 else if (!blockchain.Contains(receivedBlock.getBlockId() - 1)) {
                     stopMining();
-                    RpcClient.updateBlockChain(this.localNode, blockchain.GetLastBlock().getIndex());
+                    RpcClient.updateBlockChain(this.localNode, blockchain,blockchain.GetLastBlock().getIndex());
                     responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                     responseObserver.onCompleted();
                     return;
@@ -185,6 +169,30 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     }
 
     @Override
+    public void store(StoreRequest request, StreamObserver<StoreResponse> responseObserver) {
+        try {
+            String key = request.getKey();
+            String value = request.getValue();
+
+            localNode.addKey(key, value);
+
+            StoreResponse response = StoreResponse.newBuilder()
+                    .setResponseType(StoreResponseType.LOCAL_STORE)
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription("Failed to store key-value pair").asRuntimeException()
+            );
+        }
+    }
+
+
+    @Override
     public void getBlocksFrom(GetBlocksRequest request, StreamObserver<GetBlocksResponse> responseObserver) {
         long startIndex = request.getStartIndex();
         List<Block> blocks = blockchain.getBlocksFrom(startIndex);
@@ -201,6 +209,37 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 .build();
 
         responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void findValue(FindValueRequest request, StreamObserver<FindValueResponse> responseObserver) {
+        String key = request.getKey();
+
+        String value = localNode.getValue(key);
+
+        FindValueResponse.Builder responseBuilder = FindValueResponse.newBuilder();
+
+        if (value != null) {
+            responseBuilder.setFound(true);
+            responseBuilder.setValue(value);
+        } else {
+            BigInteger targetId = Utils.hashKeyToId(key);
+            List<Node> closest = localNode.findClosestNodes(targetId, localNode.getK());
+
+            List<NodeInfo> nodeInfos = closest.stream()
+                    .map(node -> NodeInfo.newBuilder()
+                            .setId(node.getId().toString())
+                            .setIp(node.getIpAddress())
+                            .setPort(node.getPort())
+                            .build())
+                    .collect(Collectors.toList());
+
+            responseBuilder.setFound(false);
+            responseBuilder.addAllNodes(nodeInfos);
+        }
+
+        responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
 

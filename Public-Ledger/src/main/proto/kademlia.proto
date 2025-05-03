@@ -10,6 +10,7 @@ service KademliaService {
   rpc Ping(PingRequest) returns (PingResponse);
   rpc FindNode(FindNodeRequest) returns (FindNodeResponse);
   rpc Store(StoreRequest) returns (StoreResponse);
+  rpc FindValue(FindValueRequest) returns (FindValueResponse);
   rpc GossipTransaction(TransactionMessage) returns (GossipResponse);
   rpc GossipBlock(BlockMessage) returns (GossipResponse);
   rpc GetBlocksFrom (GetBlocksRequest) returns (GetBlocksResponse);
@@ -48,7 +49,7 @@ message DestinationAddress {
 }
 
 message StoreRequest {
-  bytes key = 1;
+  string key = 1;
   string value = 2;
   SourceAddress src = 3;
   DestinationAddress dst = 4;
@@ -64,6 +65,17 @@ enum StoreResponseType {
 message StoreResponse {
   StoreResponseType response_type = 1;
 }
+
+message FindValueRequest {
+  string key = 1;
+}
+
+message FindValueResponse {
+  bool found = 1;
+  string value = 2;
+  repeated NodeInfo nodes = 3;
+}
+
 
 message TransactionMessage {
   Transaction transactionData = 1;

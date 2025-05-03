@@ -4,6 +4,7 @@ import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Blockchain.Block;
 import com.google.protobuf.ByteString;
+import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jcajce.provider.digest.SHA256;
 
@@ -11,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Security;
@@ -66,30 +68,6 @@ public class Utils implements Comparator<Node> {
             return ByteString.copyFrom(keyBytes);
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    public static byte[] serialize(Transaction tx)  {
-        try{
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            ObjectOutputStream out = new ObjectOutputStream(bos);
-            out.writeObject(tx);
-            return bos.toByteArray();
-        }
-        catch (Exception e){
-            return null;
-        }
-    }
-
-    public static Transaction deserialize(byte[] data) {
-        try
-        {
-            ByteArrayInputStream bis = new ByteArrayInputStream(data);
-            ObjectInputStream in = new ObjectInputStream(bis);
-            return (Transaction) in.readObject();
-        }
-        catch (Exception e){
-            return null;
         }
     }
 
@@ -150,4 +128,14 @@ public class Utils implements Comparator<Node> {
         return sb.toString();
     }
 
+    public static BigInteger hashKeyToId(String key) {
+        SHA256Digest digest = new SHA256Digest();
+        byte[] inputBytes = key.getBytes(StandardCharsets.UTF_8);
+        digest.update(inputBytes, 0, inputBytes.length);
+
+        byte[] hashBytes = new byte[digest.getDigestSize()];
+        digest.doFinal(hashBytes, 0);
+
+        return new BigInteger(1, hashBytes);
+    }
 }

@@ -2,14 +2,14 @@ package Communications;
 
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
-import Kademlia.Utils;
+import Utils.Utils;
 import com.google.protobuf.ByteString;
 import com.kademlia.grpc.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
+
 import java.util.stream.Collectors;
 import Blockchain.Block;
 import java.math.BigInteger;
@@ -18,7 +18,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class RpcClient {
 
@@ -292,7 +291,7 @@ public class RpcClient {
         return blockMessage;
     }
 
-    public static TransactionMessage gossipTransaction(Transaction transaction, byte[] signature, Node localNode) {
+    public static void gossipTransaction(Transaction transaction, byte[] signature, Node localNode) {
         TransactionMessage transactionMessage;
 
         try {
@@ -312,7 +311,7 @@ public class RpcClient {
 
         } catch (Exception e) {
             System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
-            return null;
+            return;
         }
         
         for (Node neighbor : localNode.getAllNeighbours()) {
@@ -348,7 +347,6 @@ public class RpcClient {
             }
         }
 
-        return transactionMessage;
     }
 
     public static void updateBlockChain(Node localnode, Blockchain blockchain,long startIndex) {
@@ -413,7 +411,7 @@ public class RpcClient {
 
         List<Block> blocks = new ArrayList<>();
 
-        for (com.kademlia.grpc.Block blockMessage : response.getBlocksList()) {
+        for (BlockMessage blockMessage : response.getBlocksList()) {
             blocks.add(Utils.convertResponseToBlock(blockMessage));
         }
 

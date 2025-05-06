@@ -3,33 +3,14 @@ package Kademlia;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.*;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.Security;
-import java.security.spec.ECGenParameterSpec;
+import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
 
-import Blockchain.Transaction;
-import Communications.RpcClient;
-import Kademlia.KBucket;
-import com.google.protobuf.ByteString;
-import com.kademlia.grpc.GossipResponse;
-import com.kademlia.grpc.KademliaServiceGrpc;
-import com.kademlia.grpc.TransactionMessage;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import org.bouncycastle.asn1.x9.X9ECParameters;
-import org.bouncycastle.asn1.x9.X9ECParametersHolder;
-import org.bouncycastle.crypto.params.ECKeyGenerationParameters;
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
-import org.bouncycastle.crypto.params.ECPublicKeyParameters;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.math.ec.ECPoint;
+import Auction.Auction;
+import Utils.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Node {
@@ -42,6 +23,9 @@ public class Node {
     private ExecutorService executorService;
     private boolean isMiner;
     private Map<String, String> map;
+    private Map<UUID, Auction> auctions = new HashMap<>();
+    private KeyPair keyPair;
+
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -58,6 +42,7 @@ public class Node {
 
         try{
             KeyPair keys = generateKeys();
+            this.keyPair = keys;
             byte[] encodedPK = keys.getPublic().getEncoded();
 
             MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
@@ -199,6 +184,34 @@ public class Node {
         return false;
     }
 
+    public Auction createAuction(String itemDescription, Instant startTime) {
+        Auction newAuction = new Auction(UUID.randomUUID(), itemDescription, this.getPublicKey(), startTime);
+        auctions.put(newAuction.getAuctionId(), newAuction);
+        return newAuction;
+    }
+
+    public boolean closeAuction(UUID auctionId) {
+        Auction auction = auctions.get(auctionId);
+        if (auction != null && auction.getOwner().equals(this.getPublicKey()))  {
+            auction.closeAuction();
+            return true;
+        }
+        return false;
+    }
+
+    public boolean placeBid(UUID auctionId, PublicKey bidder, double bidAmount) {
+        Auction auction = auctions.get(auctionId);
+        if (auction != null && !auction.isClosed() && Instant.now().isAfter(auction.getStartTime())) {
+            auction.placeBid(bidder, bidAmount);
+            return true;
+        }
+        return false;
+    }
+
+    public Auction getAuction(UUID auctionId) {
+        return auctions.get(auctionId);
+    }
+
     public int getK(){
         return this.K;
     }
@@ -208,5 +221,15 @@ public class Node {
     public int getPort(){
         return this.port;
     }
+    public PublicKey getPublicKey() {
+        return keyPair.getPublic();
+    }
 
+    public PrivateKey getPrivateKey() {
+        return keyPair.getPrivate();
+    }
+
+    public List<Auction> GetListedAuctions(){
+        return new ArrayList<>(auctions.values());
+    }
 }

@@ -1,16 +1,17 @@
-package Kademlia;
+package Utils;
 
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Blockchain.Block;
+import Kademlia.Node;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
 import com.google.protobuf.ByteString;
+import com.kademlia.grpc.BlockMessage;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jcajce.provider.digest.SHA256;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
@@ -18,16 +19,8 @@ import java.security.PublicKey;
 import java.security.Security;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 
 public class Utils implements Comparator<Node> {
 
@@ -71,19 +64,21 @@ public class Utils implements Comparator<Node> {
         }
     }
 
-    public static Block convertResponseToBlock(com.kademlia.grpc.Block receivedBlock){
+    public static Block convertResponseToBlock(BlockMessage receivedBlock){
+
+        com.kademlia.grpc.Block block = receivedBlock.getBlockData();
 
         List<Transaction> transactions = new ArrayList<>();
 
-        for (com.kademlia.grpc.Transaction tr : receivedBlock.getTransactionsList()){
+        for (com.kademlia.grpc.Transaction tr : block.getTransactionsList()){
             transactions.add(convertResponseToTransaction(tr));
         }
-        return new Block(receivedBlock.getBlockId(),
-                receivedBlock.getHash(),
-                receivedBlock.getPreviousHash(),
-                receivedBlock.getTimestamp(),
+        return new Block(block.getBlockId(),
+                block.getHash(),
+                block.getPreviousHash(),
+                block.getTimestamp(),
                 transactions,
-                receivedBlock.getNonce());
+                block.getNonce());
     }
 
     public static com.kademlia.grpc.Block convertBlockToResponse(Block block) {
@@ -137,5 +132,20 @@ public class Utils implements Comparator<Node> {
         digest.doFinal(hashBytes, 0);
 
         return new BigInteger(1, hashBytes);
+    }
+
+    public static JsonElement PublicKeySerializer(PublicKey src) {
+        String base64 = Base64.getEncoder().encodeToString(src.getEncoded());
+        return new JsonPrimitive(base64);
+    }
+    public static PublicKey PublicKeyDeserializer(JsonElement json)
+            throws JsonParseException {
+        try {
+            byte[] bytes = Base64.getDecoder().decode(json.getAsString());
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            return keyFactory.generatePublic(new X509EncodedKeySpec(bytes));
+        } catch (Exception e) {
+            throw new JsonParseException(e);
+        }
     }
 }

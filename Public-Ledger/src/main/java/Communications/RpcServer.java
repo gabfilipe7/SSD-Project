@@ -3,11 +3,9 @@ package Communications;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Kademlia.Node;
-import Kademlia.Utils;
+import Utils.Utils;
 import com.kademlia.grpc.*;
 import Blockchain.Block;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -15,14 +13,12 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.stream.Collectors;
 
 public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     private final Node localNode;
-    private final Map<UUID, Transaction> transactions = new ConcurrentHashMap<>();
     private final Blockchain blockchain;
     private int maxTransactionsPerBlock;
     private volatile boolean isMining = false;
@@ -72,7 +68,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             com.kademlia.grpc.Transaction tx = request.getTransactionData();
 
-            if (transactions.containsKey(UUID.fromString(tx.getTransactionId()))) {
+            if (this.blockchain.containsTransaction(UUID.fromString(tx.getTransactionId()))) {
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
                 return;
@@ -88,15 +84,15 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             boolean valid = assembledTransaction.validateTransaction();
             if (valid) {
                 RpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode);
-                if(transactions.size() == (maxTransactionsPerBlock - 1) && this.localNode.isMiner()){
-                    transactions.put(UUID.fromString(tx.getTransactionId()), assembledTransaction);
+                if(blockchain.getMempoolSize() == (maxTransactionsPerBlock - 1) && this.localNode.isMiner()){
+                    blockchain.addTransactionToMempool(UUID.fromString(tx.getTransactionId()), assembledTransaction);
                     Block lastBlock = blockchain.GetLastBlock();
-                    Block newBlock = new Block(lastBlock.getIndex() + 1, lastBlock.getBlockHash(), new ArrayList<>(transactions.values()));
-                    transactions.clear();
+                    Block newBlock = new Block(lastBlock.getIndex() + 1, lastBlock.getBlockHash(), new ArrayList<>(blockchain.getMempoolValues()));
+                    blockchain.clearMempool();
                     startMining(newBlock);
                 }
                 else{
-                    transactions.put(UUID.fromString(tx.getTransactionId()), assembledTransaction);
+                    blockchain.addTransactionToMempool(UUID.fromString(tx.getTransactionId()), assembledTransaction);
                 }
             }
 
@@ -270,4 +266,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             }
         }
     }
+
+
 }

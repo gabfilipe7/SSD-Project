@@ -114,6 +114,6 @@ message GetBlocksRequest {
 }
 
 message GetBlocksResponse {
-  repeated Block blocks = 1;
+  repeated BlockMessage blocks = 1;
 }
 

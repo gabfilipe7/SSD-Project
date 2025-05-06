@@ -1,13 +1,13 @@
 package Blockchain;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Blockchain {
 
     private List<Block> chain;
+    private final Map<UUID, Transaction> mempool = new ConcurrentHashMap<>();
 
     public Blockchain() {
 
@@ -136,5 +136,24 @@ public class Blockchain {
         }
     }
 
+    public void addTransactionToMempool(UUID key, Transaction transaction){
+        mempool.put(key, transaction);
+    }
+
+    public boolean containsTransaction(UUID key){
+        return mempool.containsKey(key);
+    }
+
+    public int getMempoolSize(){
+        return mempool.size();
+    }
+
+    public Collection <Transaction> getMempoolValues() {
+        return mempool.values();
+    }
+
+    public void clearMempool() {
+        mempool.clear();
+    }
 
 }

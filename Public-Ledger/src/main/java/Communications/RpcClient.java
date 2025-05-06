@@ -36,16 +36,34 @@ public class RpcClient {
                 .forAddress(localNode.getIpAddress(), localNode.getPort())
                 .usePlaintext()
                 .build();
+
+
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);
     }
 
-    public boolean ping(String nodeId) {
-        PingRequest request = PingRequest.newBuilder()
-                .setNodeId(nodeId)
-                .build();
+    public static boolean ping(Node peer) {
+        ManagedChannel channel = null;
+        try {
+            channel = ManagedChannelBuilder
+                    .forAddress(peer.getIpAddress(), peer.getPort())
+                    .usePlaintext()
+                    .build();
 
-        PingResponse response = stub.ping(request);
-        return response.getIsAlive();
+            KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+            PingRequest request = PingRequest.newBuilder().build();
+            PingResponse response = stub.ping(request);
+
+            return response.getIsAlive();
+
+        } catch (Exception e) {
+            System.err.println("Ping failed to " + peer.getId() + ": " + e.getMessage());
+            return false;
+        } finally {
+            if (channel != null) {
+                channel.shutdown();
+            }
+        }
     }
 
 

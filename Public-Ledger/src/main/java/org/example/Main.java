@@ -7,7 +7,10 @@ import Blockchain.Transaction;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Kademlia.Node;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Scanner;
@@ -20,14 +23,13 @@ public class Main {
     RpcClient rpcClient;
     RpcServer rpcServer;
 
-//fazer bootstrap hardwire e configurar bash para inicilizar direto
+    //fazer bootstrap hardwire e configurar bash para inicilizar direto
     //proof of reputation
     //segurança resistance attacks
     //leilão mechanisms
     // publisher subscriber
     //kademlia stotres findvalues
     //fault mechanism
-
 
     public static void main(String[] args) {
         boolean isBootstrap = false;
@@ -49,9 +51,17 @@ public class Main {
     }
 
     public void boot(boolean isBootstrap, int port ) {
+
         this.localNode = new Node("127.0.0.1",port,20,isBootstrap);
-        this.rpcClient = new RpcClient(localNode, blockchain);
         this.rpcServer = new RpcServer(localNode, blockchain);
+        this.startGrpcServer();
+        this.rpcClient = new RpcClient(localNode, blockchain);
+
+
+
+        if(!isBootstrap){
+            this.connectToBootstrapNodes();
+        }
 
         while (true) {
             System.out.println("Welcome to the auction manager!");
@@ -233,6 +243,51 @@ public class Main {
         RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode);
     }
 
+    private void connectToBootstrapNodes() {
+        List<Node> bootstrapNodes = List.of(
+                new Node( "127.0.0.1", 5000,20,true),
+                new Node( "127.0.0.1", 5001,20,true)
+        );
 
+        for (Node bootstrap : bootstrapNodes) {
+            System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+            boolean connected = RpcClient.ping(bootstrap);
+            if (connected) {
+                System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+                break;
+            } else {
+                System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+            }
+        }
+    }
+    private void startGrpcServer() {
+
+        new Thread(() -> {
+            try {
+                Server server = ServerBuilder.forPort(this.localNode.getPort())
+                        .addService(this.rpcServer)
+                        .build();
+
+                System.out.println("Starting gRPC server on port " + this.localNode.getPort() + "...");
+                server.start();
+                System.out.println("Server started successfully!");
+
+
+                server.awaitTermination();
+            } catch (IOException | InterruptedException e) {
+                System.err.println("Error while starting the gRPC server: " + e.getMessage());
+            }
+        }).start();
+
+
+        try {
+            System.out.println("Waiting for 4 seconds before continuing...");
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            System.err.println("Thread sleep interrupted: " + e.getMessage());
+        }
+
+        System.out.println("4 seconds passed. Now continuing with the next steps...");
+    }
 
 }

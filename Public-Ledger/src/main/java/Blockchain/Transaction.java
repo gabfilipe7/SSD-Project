@@ -143,6 +143,10 @@ public class Transaction {
         this.signature = signature;
     }
 
+    public byte[] getSignature() {
+        return this.signature;
+    }
+
     public UUID getTransactionId() { return transactionId; }
     public Instant getTimestamp() { return timestamp; }
     public PublicKey getSender() { return sender; }
@@ -152,5 +156,6 @@ public class Transaction {
     public Instant getStartTime() { return startTime; }
     public Instant getEndTime() { return endTime; }
     public Double getBidAmount() { return bidAmount; }
+
 }
 

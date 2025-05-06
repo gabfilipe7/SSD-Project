@@ -8,6 +8,7 @@ import java.security.Security;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import Auction.Auction;
 import Utils.Utils;
@@ -232,4 +233,11 @@ public class Node {
     public List<Auction> GetListedAuctions(){
         return new ArrayList<>(auctions.values());
     }
+
+    public List<Auction> GetActiveAuctions() {
+        return auctions.values().stream()
+                .filter(auction -> !auction.isClosed())
+                .collect(Collectors.toList());
+    }
+
 }

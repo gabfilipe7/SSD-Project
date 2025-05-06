@@ -29,11 +29,11 @@ public class RpcClient {
     private final Blockchain blockchain;
 
 
-    public RpcClient(String host, int port, Node localNode,Blockchain blockchain) {
+    public RpcClient(Node localNode,Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
         this.channel = ManagedChannelBuilder
-                .forAddress(host, port)
+                .forAddress(localNode.getIpAddress(), localNode.getPort())
                 .usePlaintext()
                 .build();
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);

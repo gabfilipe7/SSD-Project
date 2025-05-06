@@ -15,17 +15,43 @@ import java.util.Scanner;
 public class Main {
 
     Scanner scanner = new Scanner(System.in);
-    Node localNode = new Node("127.0.0.1",50051,20);
+    Node localNode;
     Blockchain blockchain = new Blockchain();
-    RpcClient rpcClient = new RpcClient(localNode, blockchain);
-    RpcServer rpcServer = new RpcServer(localNode, blockchain);
+    RpcClient rpcClient;
+    RpcServer rpcServer;
+
+//fazer bootstrap hardwire e configurar bash para inicilizar direto
+    //proof of reputation
+    //segurança resistance attacks
+    //leilão mechanisms
+    // publisher subscriber
+    //kademlia stotres findvalues
+    //fault mechanism
 
 
     public static void main(String[] args) {
-        new Main().boot();
+        boolean isBootstrap = false;
+        int port = 5000;
+
+        for (String arg : args) {
+            if (arg.equalsIgnoreCase("--bootstrap")) {
+                isBootstrap = true;
+            } else if (arg.startsWith("--port=")) {
+                try {
+                    port = Integer.parseInt(arg.split("=")[1]);
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid port number. Using default port 5000.");
+                }
+            }
+        }
+
+        new Main().boot(isBootstrap, port);
     }
 
-    public void boot() {
+    public void boot(boolean isBootstrap, int port ) {
+        this.localNode = new Node("127.0.0.1",port,20,isBootstrap);
+        this.rpcClient = new RpcClient(localNode, blockchain);
+        this.rpcServer = new RpcServer(localNode, blockchain);
 
         while (true) {
             System.out.println("Welcome to the auction manager!");
@@ -68,10 +94,12 @@ public class Main {
         System.out.println("----------------------");
         System.out.print("Insert the product you pretend to auction:");
         String productName = this.scanner.nextLine();
+        System.out.println("----------------------");
         Auction newAuction = this.localNode.createAuction(productName, Instant.now());
         System.out.printf("The auction for the product %s was created successfully.%n", productName);
         Transaction transaction = new Transaction(Transaction.TransactionType.CREATE_AUCTION,this.localNode.getPublicKey());
         transaction.setAuctionId(newAuction.getAuctionId());
+        transaction.setStartTime(Instant.now());
         transaction.setItemDescription(productName);
         transaction.signTransaction(this.localNode.getPrivateKey());
         this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
@@ -89,7 +117,7 @@ public class Main {
             System.out.println("----------------------------------------------");
             int count  = 0;
             for(Auction auction : auctions){
-                System.out.println(String.format("(%s) ---- %s ----- %s", count,auction.getItem()));
+                System.out.printf("(%s) ---- %s ----- %s%n", count,auction.getItem(),auction.isClosed());
                 count++;
             }
             System.out.print("Press any key to return to menu");

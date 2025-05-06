@@ -89,16 +89,17 @@ public class Transaction {
             }
 
             Security.addProvider(new BouncyCastleProvider());
+            String data =
+                    (transactionId != null ? transactionId.toString() : "") +
+                            (timestamp != null ? timestamp.toString() : "") +
+                            (sender != null ? Base64.getEncoder().encodeToString(sender.getEncoded()) : "") +
+                            (type != null ? type.toString() : "") +
+                            (auctionId != null ? auctionId.toString() : "") +
+                            (itemDescription != null ? itemDescription : "") +
+                            (startTime != null ? startTime.toString() : "") +
+                            (endTime != null ? endTime.toString() : "") +
+                            (bidAmount != null ? bidAmount.toString() : "");
 
-            String data = transactionId.toString()
-                    + timestamp.toString()
-                    + Base64.getEncoder().encodeToString(sender.getEncoded())
-                    + type.toString()
-                    + auctionId.toString()
-                    + itemDescription
-                    + startTime.toString()
-                    + endTime.toString()
-                    + bidAmount.toString();
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
@@ -117,15 +118,16 @@ public class Transaction {
         try {
             Security.addProvider(new BouncyCastleProvider());
 
-            String data = transactionId.toString()
-                    + timestamp.toString()
-                    + Base64.getEncoder().encodeToString(sender.getEncoded())
-                    + type.toString()
-                    + auctionId.toString()
-                    + itemDescription
-                    + startTime.toString()
-                    + endTime.toString()
-                    + bidAmount.toString();
+            String data =
+                    (transactionId != null ? transactionId.toString() : "") +
+                            (timestamp != null ? timestamp.toString() : "") +
+                            (sender != null ? Base64.getEncoder().encodeToString(sender.getEncoded()) : "") +
+                            (type != null ? type.toString() : "") +
+                            (auctionId != null ? auctionId.toString() : "") +
+                            (itemDescription != null ? itemDescription : "") +
+                            (startTime != null ? startTime.toString() : "") +
+                            (endTime != null ? endTime.toString() : "") +
+                            (bidAmount != null ? bidAmount.toString() : "");
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
@@ -136,6 +138,7 @@ public class Transaction {
             this.signature = signature.sign();
         } catch (Exception e) {
             throw new RuntimeException("Failed to sign transaction", e);
+
         }
     }
 

@@ -26,13 +26,13 @@ public class Node {
     private Map<String, String> map;
     private Map<UUID, Auction> auctions = new HashMap<>();
     private KeyPair keyPair;
-
+    private boolean isBootstrap = false;
 
     static {
         Security.addProvider(new BouncyCastleProvider());
     }
 
-    public Node(String ipAddress, int port, int k) {
+    public Node(String ipAddress, int port, int k, boolean isBootstrap) {
         this.ipAddress = ipAddress;
         this.port = port;
         this.map = new HashMap<>();
@@ -40,6 +40,7 @@ public class Node {
         for (int i = 0; i < 256; i++) {
             this.routingTable.add(new KBucket(k));
         }
+        this.isBootstrap = isBootstrap;
 
         try{
             KeyPair keys = generateKeys();
@@ -148,22 +149,17 @@ public class Node {
         return closestNodes.subList(0, Math.min(sizeNumber, closestNodes.size()));
     }
 
-    private static KeyPair generateKeys()  {
-
-        try{
-
-        ECGenParameterSpec parameters = new ECGenParameterSpec("secp256r1");
-
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC", "BC");
-        keyPairGenerator.initialize(parameters);
-
-        KeyPair keys = keyPairGenerator.generateKeyPair();
-
-        return keys;
+    private static KeyPair generateKeys() {
+        try {
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC");
+            keyPairGenerator.initialize(2048); // 2048 bits is secure and common
+            KeyPair keys = keyPairGenerator.generateKeyPair();
+            return keys;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
+
 
     public boolean isMiner(){
         return this.isMiner;

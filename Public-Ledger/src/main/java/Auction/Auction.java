@@ -1,6 +1,7 @@
 package Auction;
 
 import com.google.gson.*;
+import org.checkerframework.common.returnsreceiver.qual.This;
 
 import java.security.KeyFactory;
 import java.security.PublicKey;
@@ -22,6 +23,7 @@ public class Auction {
         this.itemDescription = itemDescription;
         this.owner = owner;
         this.startTime = startTime;
+        this.endTime = startTime.plusSeconds(48 *3600); // Auction lasts for 1 hour
         this.isClosed = false;
     }
 

@@ -11,14 +11,9 @@ public class Blockchain {
 
     public Blockchain() {
 
+
         chain = new ArrayList<>();
-
-        List<Transaction> firstTransaction = new ArrayList<>();
-        firstTransaction.add(null);
-
-        Block genesisBlock = new Block(0,"", firstTransaction);
-
-        chain.add(genesisBlock);
+        createGenesisBlock();
     }
 
     public Blockchain(List<Block> Chain) {
@@ -156,4 +151,12 @@ public class Blockchain {
         mempool.clear();
     }
 
+    public void createGenesisBlock() {
+        String hash = "0000000000000000000000000000000000000000000000000000000000000000";
+        long timestamp = System.currentTimeMillis();
+        List<Transaction> firstTransaction = new ArrayList<>();
+        firstTransaction.add(null);
+        Block genesisBlock = new Block(0,hash,hash,timestamp,firstTransaction,0);
+        this.chain.add(genesisBlock);
+    }
 }

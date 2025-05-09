@@ -30,6 +30,8 @@ public class Transaction {
     private Instant endTime;
     private Double bidAmount;
 
+    public Transaction() {}
+
     public Transaction(TransactionType type, PublicKey sender) {
         this.transactionId = UUID.randomUUID();
         this.timestamp = Instant.now();
@@ -49,30 +51,7 @@ public class Transaction {
             Security.addProvider(new BouncyCastleProvider());
         }
     }
-    public Transaction setAuctionId(UUID auctionId) {
-        this.auctionId = auctionId;
-        return this;
-    }
 
-    public Transaction setItemDescription(String itemDescription) {
-        this.itemDescription = itemDescription;
-        return this;
-    }
-
-    public Transaction setStartTime(Instant startTime) {
-        this.startTime = startTime;
-        return this;
-    }
-
-    public Transaction setEndTime(Instant endTime) {
-        this.endTime = endTime;
-        return this;
-    }
-
-    public Transaction setBidAmount(Double bidAmount) {
-        this.bidAmount = bidAmount;
-        return this;
-    }
 
     public boolean validateTransaction() {
         try {
@@ -159,6 +138,57 @@ public class Transaction {
     public Instant getStartTime() { return startTime; }
     public Instant getEndTime() { return endTime; }
     public Double getBidAmount() { return bidAmount; }
+    public void setTransactionId(UUID transactionId) {
+        this.transactionId = transactionId;
+    }
+
+    public void setType(TransactionType type) {
+        this.type = type;
+    }
+
+    public void setTimestamp(Instant timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public void setSender(PublicKey sender) {
+        this.sender = sender;
+    }
+
+    public void setAuctionId(UUID auctionId) {
+        this.auctionId = auctionId;
+    }
+
+    public void setItemDescription(String itemDescription) {
+        this.itemDescription = itemDescription;
+    }
+
+    public void setStartTime(Instant startTime) {
+        this.startTime = startTime;
+    }
+
+    public void setEndTime(Instant endTime) {
+        this.endTime = endTime;
+    }
+
+    public void setBidAmount(Double bidAmount) {
+        this.bidAmount = bidAmount;
+    }
+
+    @Override
+    public String toString() {
+        return "Transaction{" +
+                "transactionId=" + (transactionId != null ? transactionId.toString() : "null") +
+                ", type=" + (type != null ? type.name() : "null") +
+                ", timestamp=" + (timestamp != null ? timestamp.toString() : "null") +
+                ", senderPublicKey=" + (sender != null ? Base64.getEncoder().encodeToString(sender.getEncoded()) : "null") +
+                ", auctionId='" + (auctionId != null ? auctionId : "null") + '\'' +
+                ", itemDescription='" + (itemDescription != null ? itemDescription : "null") + '\'' +
+                ", startTime='" + (startTime != null ? startTime : "null") + '\'' +
+                ", endTime='" + (endTime != null ? endTime : "null") + '\'' +
+                ", bidAmount='" + (bidAmount != null ? bidAmount : "null") + '\'' +
+                '}';
+    }
+
 
 }
 

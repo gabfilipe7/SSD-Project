@@ -17,7 +17,7 @@ service KademliaService {
 }
 
 message PingRequest {
-  string node_id = 1;
+  NodeInfo node = 1;
 }
 
 message PingResponse {
@@ -80,6 +80,7 @@ message FindValueResponse {
 message TransactionMessage {
   Transaction transactionData = 1;
   bytes signature = 2;
+  string senderNodeId  = 3;
 }
 
 message Transaction {
@@ -87,8 +88,11 @@ message Transaction {
   uint32 type = 2;
   string timestamp = 3;
   bytes senderPublicKey = 4;
-  string from = 5;
-  string to = 6;
+  string auctionId = 7;
+  string itemDescription = 8;
+  string startTime = 9;
+  string endTime = 10;
+  string bidAmount = 11;
 }
 
 message GossipResponse {

@@ -12,8 +12,10 @@ import io.grpc.ServerBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.UUID;
 
 public class Main {
 
@@ -33,7 +35,7 @@ public class Main {
 
     public static void main(String[] args) {
         boolean isBootstrap = false;
-        int port = 5000;
+        int port = 5002;
 
         for (String arg : args) {
             if (arg.equalsIgnoreCase("--bootstrap")) {
@@ -51,14 +53,19 @@ public class Main {
     }
 
     public void boot(boolean isBootstrap, int port ) {
-
         this.localNode = new Node("127.0.0.1",port,20,isBootstrap);
+        this.localNode.setIsMiner(true);
         this.rpcServer = new RpcServer(localNode, blockchain);
         this.startGrpcServer();
         this.rpcClient = new RpcClient(localNode, blockchain);
 
+        this.blockchain.createGenesisBlock();
 
-
+/*
+        if(port==5000){
+            isBootstrap = true;
+        }
+*/
         if(!isBootstrap){
             this.connectToBootstrapNodes();
         }
@@ -112,14 +119,24 @@ public class Main {
         transaction.setStartTime(Instant.now());
         transaction.setItemDescription(productName);
         transaction.signTransaction(this.localNode.getPrivateKey());
-        this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-        RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode);
+        if(blockchain.getMempoolSize() == (1 - 1) && this.localNode.isMiner()){
+            this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
+            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode, null);
+            Block lastBlock = blockchain.GetLastBlock();
+            Block newBlock = new Block(lastBlock.getIndex() + 1, lastBlock.getBlockHash(), new ArrayList<>(blockchain.getMempoolValues()));
+            blockchain.clearMempool();
+            this.rpcServer.startMining(newBlock);
+        }
+        else{
+            this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
+            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode, null);
+        }
     }
 
     private void listAuctions(){
         List<Auction> auctions = this.localNode.GetListedAuctions();
         if (auctions.isEmpty()) {
-            System.out.println("There are no auctions to close.");
+            System.out.println("There are no auctions to show.");
             return;
         }
         else{
@@ -178,7 +195,7 @@ public class Main {
             transaction.setEndTime(Instant.now());
             transaction.signTransaction(this.localNode.getPrivateKey());
             this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode);
+            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode,null);
         } else {
             System.out.println("Failed to close auction. It might have already been closed or you might not be the creator of this auction.");
         }
@@ -240,7 +257,7 @@ public class Main {
         transaction.setBidAmount(bidValue);
         transaction.signTransaction(this.localNode.getPrivateKey());
         this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-        RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode);
+        RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode,null);
     }
 
     private void connectToBootstrapNodes() {
@@ -251,10 +268,10 @@ public class Main {
 
         for (Node bootstrap : bootstrapNodes) {
             System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            boolean connected = RpcClient.ping(bootstrap);
+            boolean connected = RpcClient.ping(bootstrap,localNode);
             if (connected) {
+                this.localNode.addNode(bootstrap);
                 System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-                break;
             } else {
                 System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
             }

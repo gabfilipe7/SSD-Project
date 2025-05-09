@@ -27,6 +27,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public RpcServer(Node localNode, Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
+        this.maxTransactionsPerBlock = 1;
     }
 
     @Override
@@ -34,6 +35,9 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         PingResponse response = PingResponse.newBuilder()
                 .setIsAlive(true)
                 .build();
+
+        Node node = new Node(new BigInteger(request.getNode().getId()), request.getNode().getIp(),request.getNode().getPort());
+        this.localNode.addNode(node);
 
         responseObserver.onNext(response);
         responseObserver.onCompleted();
@@ -74,16 +78,12 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 return;
             }
 
-            Transaction assembledTransaction = new Transaction(UUID.fromString(tx.getTransactionId()),
-                    Transaction.TransactionType.values()[tx.getType()],
-                    Instant.parse(tx.getTimestamp()),
-                    Utils.byteStringToPublicKey(tx.getSenderPublicKey()));
-
+            Transaction assembledTransaction = Utils.convertResponseToTransaction(tx);
 
             assembledTransaction.setSignature(request.getSignature().toByteArray());
             boolean valid = assembledTransaction.validateTransaction();
             if (valid) {
-                RpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode);
+                RpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
                 if(blockchain.getMempoolSize() == (maxTransactionsPerBlock - 1) && this.localNode.isMiner()){
                     blockchain.addTransactionToMempool(UUID.fromString(tx.getTransactionId()), assembledTransaction);
                     Block lastBlock = blockchain.GetLastBlock();
@@ -247,6 +247,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             blockToMine.mine(() -> isMining);
             if (isMining && blockchain.verifyBlock(blockToMine)) {
                 blockchain.AddNewBlock(blockToMine);
+                localNode.handleBlockTransactions(blockToMine);
                 RpcClient.gossipBlock(blockToMine, localNode);
                 isMining = false;
                 currentBlockMining = null;

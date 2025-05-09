@@ -29,6 +29,7 @@ public class RpcClient {
     private final Blockchain blockchain;
 
 
+
     public RpcClient(Node localNode,Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
@@ -41,7 +42,7 @@ public class RpcClient {
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);
     }
 
-    public static boolean ping(Node peer) {
+    public static boolean ping(Node peer, Node localNode) {
         ManagedChannel channel = null;
         try {
             channel = ManagedChannelBuilder
@@ -49,9 +50,20 @@ public class RpcClient {
                     .usePlaintext()
                     .build();
 
+
             KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
-            PingRequest request = PingRequest.newBuilder().build();
+            NodeInfo nodeInfo = NodeInfo.newBuilder()
+                    .setId(localNode.getId().toString())
+                    .setIp(localNode.getIpAddress())
+                    .setPort(localNode.getPort())
+                    .build();
+
+
+            PingRequest request = PingRequest.newBuilder()
+                    .setNode(nodeInfo)
+                    .build();
+
             PingResponse response = stub.ping(request);
 
             return response.getIsAlive();
@@ -65,6 +77,7 @@ public class RpcClient {
             }
         }
     }
+
 
 
     public CompletableFuture<Optional<Node>> findNode(BigInteger targetId) {
@@ -251,15 +264,7 @@ public class RpcClient {
                     .setNonce(block.getNonce())
                     .setHash(block.getBlockHash())
                     .addAllTransactions(
-                            block.getTransactions().stream().map(tx ->
-                                    com.kademlia.grpc.Transaction.newBuilder()
-                                            .setTransactionId(tx.getTransactionId().toString())
-                                            .setType(tx.getType().ordinal())
-                                            .setTimestamp(tx.getTimestamp().toString())
-                                            .setSenderPublicKey(ByteString.copyFrom(tx.getSender().getEncoded()))
-                                            .setFrom("PLACEHOLDER")
-                                            .setTo("PLACEHOLDER")
-                                            .build()
+                            block.getTransactions().stream().map(Utils::convertTransactionToResponse
                             ).collect(Collectors.toList())
                     )
                     .build();
@@ -309,22 +314,28 @@ public class RpcClient {
         return blockMessage;
     }
 
-    public static void gossipTransaction(Transaction transaction, byte[] signature, Node localNode) {
+    public static void gossipTransaction(Transaction transaction, byte[] signature, Node localNode, BigInteger senderNodeId) {
         TransactionMessage transactionMessage;
 
         try {
             com.kademlia.grpc.Transaction protoTx = com.kademlia.grpc.Transaction.newBuilder()
-                    .setTransactionId(transaction.getTransactionId().toString())
-                    .setType(transaction.getType().ordinal())
-                    .setTimestamp(transaction.getTimestamp().toString())
-                    .setSenderPublicKey(ByteString.copyFrom(transaction.getSender().getEncoded()))
-                    .setFrom("PLACEHOLDER")
-                    .setTo("PLACEHOLDER")
+                    .setTransactionId(transaction.getTransactionId() != null ? transaction.getTransactionId().toString() : "")
+                    .setType(transaction.getType() != null ? transaction.getType().ordinal() : 0)
+                    .setTimestamp(transaction.getTimestamp() != null ? transaction.getTimestamp().toString() : "")
+                    .setSenderPublicKey(transaction.getSender() != null ? ByteString.copyFrom(transaction.getSender().getEncoded()) : ByteString.EMPTY)
+                    .setAuctionId(transaction.getAuctionId() != null ? transaction.getAuctionId().toString() : "")
+                    .setItemDescription(transaction.getItemDescription() != null ? transaction.getItemDescription() : "")
+                    .setStartTime(transaction.getStartTime() != null ? transaction.getStartTime().toString() : "")
+                    .setEndTime(transaction.getEndTime() != null ? transaction.getEndTime().toString() : "")
+                    .setBidAmount(transaction.getBidAmount() != null ? transaction.getBidAmount().toString() : "")
                     .build();
+
+
 
             transactionMessage = TransactionMessage.newBuilder()
                     .setTransactionData(protoTx)
                     .setSignature(ByteString.copyFrom(signature))
+                    .setSenderNodeId(localNode.getId().toString())
                     .build();
 
         } catch (Exception e) {
@@ -333,6 +344,11 @@ public class RpcClient {
         }
         
         for (Node neighbor : localNode.getAllNeighbours()) {
+            if(senderNodeId!= null){
+                if(neighbor.getId().equals(senderNodeId)){
+                    continue;
+                }
+            }
             ManagedChannel channel = null;
             try {
                 channel = ManagedChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())
@@ -435,5 +451,6 @@ public class RpcClient {
 
         return blocks;
     }
+
 
 }

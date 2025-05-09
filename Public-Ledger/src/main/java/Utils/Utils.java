@@ -98,21 +98,54 @@ public class Utils implements Comparator<Node> {
     }
 
 
-    public static Transaction convertResponseToTransaction(com.kademlia.grpc.Transaction transaction){
-        return new Transaction(UUID.fromString(transaction.getTransactionId()),
-                Transaction.TransactionType.values()[transaction.getType()],
-                Instant.parse(transaction.getTimestamp()),
-                Utils.byteStringToPublicKey(transaction.getSenderPublicKey()));
+    public static Transaction convertResponseToTransaction(com.kademlia.grpc.Transaction transaction) {
+        Transaction tx = new Transaction();
+
+        if (!transaction.getTransactionId().isEmpty()) {
+            tx.setTransactionId(UUID.fromString(transaction.getTransactionId()));
+        }
+        tx.setType(Transaction.TransactionType.values()[transaction.getType()]);
+        if (!transaction.getTimestamp().isEmpty()) {
+            tx.setTimestamp(Instant.parse(transaction.getTimestamp()));
+        }
+        if (!transaction.getSenderPublicKey().isEmpty()) {
+            tx.setSender(Utils.byteStringToPublicKey(transaction.getSenderPublicKey()));
+        }
+        if (!transaction.getAuctionId().isEmpty()) {
+            tx.setAuctionId(UUID.fromString(transaction.getAuctionId()));
+        }
+        if (!transaction.getItemDescription().isEmpty()) {
+            tx.setItemDescription(transaction.getItemDescription());
+        }
+        if (!transaction.getStartTime().isEmpty()) {
+            tx.setStartTime(Instant.parse(transaction.getStartTime()));
+        }
+        if (!transaction.getEndTime().isEmpty()) {
+            tx.setEndTime(Instant.parse(transaction.getEndTime()));
+        }
+        if (!transaction.getBidAmount().isEmpty()) {
+            tx.setBidAmount(Double.parseDouble(transaction.getBidAmount()));
+        }
+        return tx;
     }
 
+
     public static com.kademlia.grpc.Transaction convertTransactionToResponse(Transaction transaction) {
-        return com.kademlia.grpc.Transaction.newBuilder()
-                .setTransactionId(transaction.getTransactionId().toString())
-                .setType(transaction.getType().ordinal())
-                .setTimestamp(transaction.getTimestamp().toString())
-                .setSenderPublicKey(Utils.publicKeyToByteString(transaction.getSender()))
-                .build();
+        com.kademlia.grpc.Transaction.Builder protoTxBuilder = com.kademlia.grpc.Transaction.newBuilder();
+
+        protoTxBuilder.setTransactionId(transaction.getTransactionId() != null ? transaction.getTransactionId().toString() : "")
+                .setType(transaction.getType() != null ? transaction.getType().ordinal() : 0)
+                .setTimestamp(transaction.getTimestamp() != null ? transaction.getTimestamp().toString() : "")
+                .setSenderPublicKey(transaction.getSender() != null ? Utils.publicKeyToByteString(transaction.getSender()) : ByteString.EMPTY)
+                .setAuctionId(transaction.getAuctionId() != null ? transaction.getAuctionId().toString() : "")
+                .setItemDescription(transaction.getItemDescription() != null ? transaction.getItemDescription() : "")
+                .setStartTime(transaction.getStartTime() != null ? transaction.getStartTime().toString() : "")
+                .setEndTime(transaction.getEndTime() != null ? transaction.getEndTime().toString() : "")
+                .setBidAmount(transaction.getBidAmount() != null ? transaction.getBidAmount().toString() : "");
+
+        return protoTxBuilder.build();
     }
+
 
     public static String calculateChainHash(Blockchain blockchain) {
 

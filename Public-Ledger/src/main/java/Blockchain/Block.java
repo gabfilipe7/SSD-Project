@@ -1,4 +1,5 @@
 package Blockchain;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -15,7 +16,7 @@ public class Block {
     private final long Timestamp;
     private final List<Transaction> Transactions;
     private long Nonce;
-    private final int Difficulty = 4;
+    private final int Difficulty = 3;
 
     public Block(long index, String previousBlockHash, List<Transaction> transactions ) {
         this.PreviousBlockHash = previousBlockHash;
@@ -67,6 +68,7 @@ public class Block {
         while (shouldContinueMining.getAsBoolean()) {
             String hash = this.CalculateBlockHash();
             if (hash.startsWith(pattern)) {
+                System.out.println("YOU MINED THE BLOCK YEYY!! :D");
                 this.BlockHash = hash;
                 break;
             }
@@ -86,6 +88,10 @@ public class Block {
 
     public String getBlockHash() {
         return BlockHash;
+    }
+
+    public void setBlockHash(String hash) {
+        this.BlockHash = hash;
     }
 
     public int getDifficulty() {

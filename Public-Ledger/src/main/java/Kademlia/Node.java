@@ -11,8 +11,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import Auction.Auction;
+import Blockchain.Block;
+import Blockchain.Transaction;
 import Utils.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.checkerframework.checker.units.qual.A;
+
+import static Blockchain.Transaction.TransactionType.CREATE_AUCTION;
 
 public class Node {
 
@@ -165,6 +170,10 @@ public class Node {
         return this.isMiner;
     }
 
+    public void setIsMiner(boolean isMiner){
+        this.isMiner = isMiner;
+    }
+
     public void addKey(String key, String value) {
         map.put(key, value);
     }
@@ -234,6 +243,19 @@ public class Node {
         return auctions.values().stream()
                 .filter(auction -> !auction.isClosed())
                 .collect(Collectors.toList());
+    }
+
+    public void addAuctionToAuctions(Auction a) {
+        this.auctions.put(a.getAuctionId(),a);
+    }
+
+    public void handleBlockTransactions(Block block){
+        for(Transaction tr : block.getTransactions()){
+            if(tr.getType().equals(CREATE_AUCTION)){
+                this.addAuctionToAuctions(new Auction(tr.getAuctionId(),tr.getItemDescription(),tr.getSender(),tr.getStartTime()));
+            }
+
+        }
     }
 
 }

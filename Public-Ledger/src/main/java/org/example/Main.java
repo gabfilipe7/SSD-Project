@@ -118,6 +118,7 @@ public class Main {
         transaction.setAuctionId(newAuction.getAuctionId());
         transaction.setStartTime(Instant.now());
         transaction.setItemDescription(productName);
+        transaction.setEndTime(Instant.now().plusSeconds(48 * 3600));
         transaction.signTransaction(this.localNode.getPrivateKey());
         if(blockchain.getMempoolSize() == (1 - 1) && this.localNode.isMiner()){
             this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
@@ -209,7 +210,7 @@ public class Main {
             return;
         }
 
-        System.out.println("Select an auction to close:");
+        System.out.println("Select an auction to bid:");
         System.out.println("------------------------------");
         int count = 0;
 
@@ -234,6 +235,8 @@ public class Main {
         }
 
         Auction auction = auctions.get(choice);
+
+
 
         if (auction == null) {
             System.out.println("Auction not found.");

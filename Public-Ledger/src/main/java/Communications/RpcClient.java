@@ -42,40 +42,34 @@ public class RpcClient {
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);
     }
 
-    public static boolean ping(Node peer, Node localNode) {
+    public static boolean ping(Node peer) {
         ManagedChannel channel = null;
         try {
+            System.out.println("Attempting to ping " + peer.getIpAddress() + ":" + peer.getPort() +
+                    " (Node ID: " + peer.getId() + ")");
+
             channel = ManagedChannelBuilder
                     .forAddress(peer.getIpAddress(), peer.getPort())
                     .usePlaintext()
                     .build();
 
+            KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel)
+                    .withDeadlineAfter(2, TimeUnit.SECONDS);
 
-            KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+            PingResponse response = stub.ping(PingRequest.newBuilder().build());
+            System.out.println("Successfully pinged " + peer.getId());
+            return true;
 
-            NodeInfo nodeInfo = NodeInfo.newBuilder()
-                    .setId(localNode.getId().toString())
-                    .setIp(localNode.getIpAddress())
-                    .setPort(localNode.getPort())
-                    .build();
-
-
-            PingRequest request = PingRequest.newBuilder()
-                    .setNode(nodeInfo)
-                    .build();
-
-            PingResponse response = stub.ping(request);
-
-            return response.getIsAlive();
-
+        } catch (StatusRuntimeException e) {
+            System.err.println("gRPC error pinging " + peer.getId() + ": " + e.getStatus().getDescription());
         } catch (Exception e) {
-            System.err.println("Ping failed to " + peer.getId() + ": " + e.getMessage());
-            return false;
+            System.err.println("General error pinging " + peer.getId() + ": " + e.getMessage());
         } finally {
             if (channel != null) {
                 channel.shutdown();
             }
         }
+        return false;
     }
 
 
@@ -224,33 +218,39 @@ public class RpcClient {
         }
     }
     public static Optional<String> findValue(String key, Node node) {
-        ManagedChannel channel = ManagedChannelBuilder
-                .forAddress(node.getIpAddress(), node.getPort())
-                .usePlaintext()
-                .build();
+        List<Node> nodesToQuery = node.getActiveConnections();
+        if (nodesToQuery.size() < 3) {
+            return Optional.empty();
+        }
 
-        KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+        List<String> responses = new ArrayList<>();
+        int successCount = 0;
 
-        try {
-            FindValueRequest request = FindValueRequest.newBuilder()
-                    .setKey(key)
-                    .build();
+        for (Node neighbor : nodesToQuery.subList(0, 3)) {
+            try {
+                Optional<String> response = querySingleNode(key, neighbor);
+                if (response.isPresent()) {
+                    responses.add(response.get());
+                    successCount++;
+                    if (successCount >= 2) break; // Quorum reached
+                }
+            } catch (Exception e) {
+                System.err.println("Query to node " + neighbor.getId() + " failed: " + e.getMessage());
+            }
+        }
 
-            FindValueResponse response = stub.findValue(request);
-
-            if (response.getFound()) {
-                return Optional.of(response.getValue());
-            } else {
-                //ver esta parte depois
-                return Optional.empty();
+        // Simple majority voting
+        if (!responses.isEmpty()) {
+            Map<String, Integer> counts = new HashMap<>();
+            for (String res : responses) {
+                counts.put(res, counts.getOrDefault(res, 0) + 1);
             }
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Optional.empty();
-        } finally {
-            channel.shutdown();
+            String mostCommon = Collections.max(counts.entrySet(), Map.Entry.comparingByValue()).getKey();
+            return Optional.of(mostCommon);
         }
+
+        return Optional.empty();
     }
 
     public static BlockMessage gossipBlock(Block block, Node localNode) {

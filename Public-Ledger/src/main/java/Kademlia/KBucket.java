@@ -14,15 +14,24 @@ public class KBucket {
     }
 
     public boolean addNode(Node node) {
-        int size = this.Nodes.size();
-        if (size< this.K) {
-            this.Nodes.add(node);
+        if (Nodes.contains(node)) {
+            Nodes.remove(node);
+            Nodes.add(0, node);
             return true;
-        } else {
-            this.Nodes.remove(size - 1);
-            this.Nodes.add(0, node);
-            return false;
         }
+
+        if (Nodes.size() < K) {
+            Nodes.add(0, node);
+            return true;
+        }
+
+        Node last = Nodes.get(Nodes.size()-1);
+        if (!RpcClient.ping(last)) {
+            Nodes.remove(last);
+            Nodes.add(0, node);
+            return true;
+        }
+        return false;
     }
     public List<Node> getNodes() {
         return this.Nodes;

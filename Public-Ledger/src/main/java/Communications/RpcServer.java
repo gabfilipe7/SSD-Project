@@ -211,34 +211,23 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     @Override
     public void findValue(FindValueRequest request, StreamObserver<FindValueResponse> responseObserver) {
         String key = request.getKey();
-
         String value = localNode.getValue(key);
 
-        FindValueResponse.Builder responseBuilder = FindValueResponse.newBuilder();
+        FindValueResponse.Builder responseBuilder = FindValueResponse.newBuilder();  // Proper initialization
 
         if (value != null) {
-            responseBuilder.setFound(true);
-            responseBuilder.setValue(value);
+            responseBuilder
+                    .setFound(true)
+                    .setValue(value);  // Proper chaining with semicolon
         } else {
-            BigInteger targetId = Utils.hashKeyToId(key);
-            List<Node> closest = localNode.findClosestNodes(targetId, localNode.getK());
-
-            List<NodeInfo> nodeInfos = closest.stream()
-                    .map(node -> NodeInfo.newBuilder()
-                            .setId(node.getId().toString())
-                            .setIp(node.getIpAddress())
-                            .setPort(node.getPort())
-                            .build())
-                    .collect(Collectors.toList());
-
+            // Handle missing value case
             responseBuilder.setFound(false);
-            responseBuilder.addAllNodes(nodeInfos);
         }
 
+        // Properly terminated statement
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
-
 
     public void startMining(Block blockToMine) {
         isMining = true;

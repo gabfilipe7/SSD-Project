@@ -32,6 +32,9 @@ public class Node {
     private Map<UUID, Auction> auctions = new HashMap<>();
     private KeyPair keyPair;
     private boolean isBootstrap = false;
+    private static final int MIN_CONNECTIONS = 3;
+    private final Set<Node> activeConnections = ConcurrentHashMap.newKeySet();
+
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -68,6 +71,7 @@ public class Node {
         this.port = port;
         this.nodeId = nodeId;
     }
+
 
     public BigInteger xorDistance(BigInteger other) {
         return this.nodeId.xor(other);
@@ -146,7 +150,7 @@ public class Node {
         }
 
         if (closestNodes.isEmpty()) {
-            return null;
+            return Collections.emptyList(); // Instead of null
         }
 
         closestNodes.sort(nodeComparator);
@@ -256,6 +260,23 @@ public class Node {
             }
 
         }
+    }
+
+    public boolean hasMinimumConnections() {
+        return activeConnections.size() >= MIN_CONNECTIONS;
+    }
+
+    public void addActiveConnection(Node node) {
+        activeConnections.add(node);
+        if (activeConnections.size() > MIN_CONNECTIONS * 2) { // Keep reasonable size
+            Iterator<Node> it = activeConnections.iterator();
+            it.next();
+            it.remove();
+        }
+    }
+
+    public List<Node> getActiveConnections() {
+        return new ArrayList<>(activeConnections);
     }
 
 }

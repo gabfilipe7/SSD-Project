@@ -264,20 +264,44 @@ public class Main {
     }
 
     private void connectToBootstrapNodes() {
-        List<Node> bootstrapNodes = List.of(
-                new Node( "127.0.0.1", 5000,20,true),
-                new Node( "127.0.0.1", 5001,20,true)
-        );
+        private void connectToBootstrapNodes() {
+            List<Node> bootstrapNodes = List.of(
+                    new Node("127.0.0.1", 5000, 20, true),
+                    new Node("127.0.0.1", 5001, 20, true),
+                    new Node("127.0.0.1", 5002, 20, true)
+            );
 
-        for (Node bootstrap : bootstrapNodes) {
-            System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            boolean connected = RpcClient.ping(bootstrap,localNode);
-            if (connected) {
-                this.localNode.addNode(bootstrap);
-                System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            } else {
-                System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            }
+            // Retry connection attempts with backoff
+            new Thread(() -> {
+                int retries = 0;
+                while (!localNode.hasMinimumConnections() && retries < 5) {
+                    System.out.println("Connection attempt " + (retries + 1) + "/5");
+
+                    for (Node bootstrap : bootstrapNodes) {
+                        if (localNode.hasMinimumConnections()) break;
+
+                        System.out.println("Trying bootstrap node at " +
+                                bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+
+                        if (RpcClient.ping(bootstrap)) {
+                            localNode.addActiveConnection(bootstrap);
+                            System.out.println("Connected to bootstrap node");
+                        }
+                    }
+
+                    try {
+                        Thread.sleep(3000 * (retries + 1)); // Exponential backoff
+                        retries++;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+
+                if (!localNode.hasMinimumConnections()) {
+                    System.err.println("Failed to establish minimum connections after 5 attempts");
+                }
+            }).start();
         }
     }
     private void startGrpcServer() {

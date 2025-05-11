@@ -9,6 +9,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonPrimitive;
 import com.google.protobuf.ByteString;
 import com.kademlia.grpc.BlockMessage;
+import com.kademlia.grpc.TransactionMessage;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
@@ -73,6 +74,7 @@ public class Utils implements Comparator<Node> {
         for (com.kademlia.grpc.Transaction tr : block.getTransactionsList()){
             transactions.add(convertResponseToTransaction(tr));
         }
+
         return new Block(block.getBlockId(),
                 block.getHash(),
                 block.getPreviousHash(),
@@ -126,6 +128,9 @@ public class Utils implements Comparator<Node> {
         if (!transaction.getBidAmount().isEmpty()) {
             tx.setBidAmount(Double.parseDouble(transaction.getBidAmount()));
         }
+        if (!transaction.getSignature().isEmpty()) {
+            tx.setSignature(transaction.getSignature().toByteArray());
+        }
         return tx;
     }
 
@@ -141,7 +146,9 @@ public class Utils implements Comparator<Node> {
                 .setItemDescription(transaction.getItemDescription() != null ? transaction.getItemDescription() : "")
                 .setStartTime(transaction.getStartTime() != null ? transaction.getStartTime().toString() : "")
                 .setEndTime(transaction.getEndTime() != null ? transaction.getEndTime().toString() : "")
-                .setBidAmount(transaction.getBidAmount() != null ? transaction.getBidAmount().toString() : "");
+                .setBidAmount(transaction.getBidAmount() != null ? transaction.getBidAmount().toString() : "")
+                .setSignature((transaction.getSignature() != null ? ByteString.copyFrom(transaction.getSignature())  : ByteString.EMPTY));
+
 
         return protoTxBuilder.build();
     }

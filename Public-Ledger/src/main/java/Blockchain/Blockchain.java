@@ -33,6 +33,18 @@ public class Blockchain {
         this.chain.add(newBlock);
     }*/
 
+  public boolean isTransactionInBlockchain(UUID targetTransactionId) {
+
+      for (Block block : this.chain) {
+          for (Transaction transaction : block.getTransactions()) {
+              if (transaction.getTransactionId().equals(targetTransactionId)) {
+                  return true;
+              }
+          }
+      }
+      return false;
+  }
+
     public void AddNewBlock(Block block) {
         this.chain.add(block);
     }

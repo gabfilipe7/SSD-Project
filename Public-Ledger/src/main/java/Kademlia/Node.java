@@ -17,6 +17,7 @@ import Utils.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.checkerframework.checker.units.qual.A;
 
+import static Blockchain.Transaction.TransactionType.CLOSE_AUCTION;
 import static Blockchain.Transaction.TransactionType.CREATE_AUCTION;
 
 public class Node {
@@ -253,6 +254,9 @@ public class Node {
         for(Transaction tr : block.getTransactions()){
             if(tr.getType().equals(CREATE_AUCTION)){
                 this.addAuctionToAuctions(new Auction(tr.getAuctionId(),tr.getItemDescription(),tr.getSender(),tr.getStartTime()));
+            }
+            if(tr.getType().equals(CLOSE_AUCTION)){
+                this.closeAuction(tr.getAuctionId());
             }
 
         }

@@ -93,6 +93,7 @@ message Transaction {
   string startTime = 9;
   string endTime = 10;
   string bidAmount = 11;
+  bytes signature = 12;
 }
 
 message GossipResponse {

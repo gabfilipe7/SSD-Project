@@ -111,10 +111,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             List<Transaction> transactions = new ArrayList<>();
 
             for (com.kademlia.grpc.Transaction tr : receivedBlock.getTransactionsList()){
-                Transaction transaction = new Transaction(UUID.fromString(tr.getTransactionId()),
-                        Transaction.TransactionType.values()[tr.getType()],
-                        Instant.parse(tr.getTimestamp()),
-                        Utils.byteStringToPublicKey(tr.getSenderPublicKey()));
+                Transaction transaction = Utils.convertResponseToTransaction(tr);
                 transactions.add(transaction);
             }
 
@@ -133,8 +130,10 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                                     receivedBlock.getNonce());
 
                 if (blockchain.verifyBlock(block)) {
-                    if(Objects.equals(currentBlockMining.getPreviousBlockHash(), block.getPreviousBlockHash())){
-                        stopMining();
+                    if(currentBlockMining != null){
+                        if(Objects.equals(currentBlockMining.getPreviousBlockHash(), block.getPreviousBlockHash())){
+                            stopMining();
+                        }
                     }
                     blockchain.AddNewBlock(block);
                     RpcClient.gossipBlock(block,this.localNode);

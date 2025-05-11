@@ -118,7 +118,6 @@ public class Main {
         transaction.setAuctionId(newAuction.getAuctionId());
         transaction.setStartTime(Instant.now());
         transaction.setItemDescription(productName);
-        transaction.setEndTime(Instant.now().plusSeconds(48 * 3600));
         transaction.signTransaction(this.localNode.getPrivateKey());
         if(blockchain.getMempoolSize() == (1 - 1) && this.localNode.isMiner()){
             this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);

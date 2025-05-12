@@ -26,7 +26,7 @@ public class Auction {
     }
 
     public void placeBid(PublicKey bidder, double amount) {
-        if (!isClosed && Instant.now().isBefore(endTime)) {
+        if (!isClosed /*&& Instant.now().isBefore(endTime)*/) {
             bids.add(new Bid(bidder, amount, Instant.now()));
         }
     }

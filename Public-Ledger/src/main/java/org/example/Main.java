@@ -29,8 +29,8 @@ public class Main {
     //proof of reputation
     //segurança resistance attacks
     //leilão mechanisms
-    // publisher subscriber
-    //kademlia stotres findvalues
+    //publisher subscriber
+    //kademlia stores findvalues
     //fault mechanism
 
     public static void main(String[] args) {
@@ -55,6 +55,7 @@ public class Main {
     public void boot(boolean isBootstrap, int port ) {
         this.localNode = new Node("127.0.0.1",port,20,isBootstrap);
         this.localNode.setIsMiner(true);
+        this.localNode.setK(20);
         this.rpcServer = new RpcServer(localNode, blockchain);
         this.startGrpcServer();
         this.rpcClient = new RpcClient(localNode, blockchain);
@@ -78,6 +79,7 @@ public class Main {
             System.out.println("(3) Place Bid");
             System.out.println("(4) Close Auction");
             System.out.println("(5) Exit");
+            System.out.println("(6) Show Mempool");
             System.out.println("----------------------");
             System.out.print("Select an option:");
 
@@ -100,6 +102,10 @@ public class Main {
                 case 5:
                     System.out.println("Exiting...");
                     return;
+                case 6:
+                    System.out.println("Printing Mempool");
+                    this.blockchain.printMempoolValues();
+                    break;
                 default:
                     System.out.println("Invalid option. Try again.");
             }
@@ -119,7 +125,7 @@ public class Main {
         transaction.setStartTime(Instant.now());
         transaction.setItemDescription(productName);
         transaction.signTransaction(this.localNode.getPrivateKey());
-        if(blockchain.getMempoolSize() == (1 - 1) && this.localNode.isMiner()){
+        if(blockchain.getMempoolSize() == (3 - 1) && this.localNode.isMiner()){
             this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
             RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode, null);
             Block lastBlock = blockchain.GetLastBlock();
@@ -273,6 +279,7 @@ public class Main {
             boolean connected = RpcClient.ping(bootstrap,localNode);
             if (connected) {
                 this.localNode.addNode(bootstrap);
+                this.rpcClient.findNode(bootstrap.getId());
                 System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
             } else {
                 System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());

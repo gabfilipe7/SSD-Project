@@ -10,14 +10,11 @@ import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
 
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import Blockchain.Block;
 import java.math.BigInteger;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class RpcClient {
 
@@ -37,7 +34,7 @@ public class RpcClient {
                 .forAddress(localNode.getIpAddress(), localNode.getPort())
                 .usePlaintext()
                 .build();
-
+        this.executorService = Executors.newFixedThreadPool(10);
 
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);
     }
@@ -81,7 +78,7 @@ public class RpcClient {
 
 
     public CompletableFuture<Optional<Node>> findNode(BigInteger targetId) {
-        List<Node> initialPeers = this.localNode.findClosestNodes(targetId,  this.localNode.getK());
+        List<Node> initialPeers = this.localNode.findClosestNodes(targetId,  3);
         Set<Node> alreadyChecked = new HashSet<>();
 
         return findNodeRecursive(targetId, initialPeers, alreadyChecked,20);
@@ -158,12 +155,7 @@ public class RpcClient {
                 });
     }
 
-
-
-
-
-
-    public static List<Node> findNode(Node peer, BigInteger targetId) {
+    public List<Node> findNode(Node peer, BigInteger targetId) {
         ManagedChannel channel = ManagedChannelBuilder
                 .forAddress(peer.getIpAddress(), peer.getPort())
                 .usePlaintext()
@@ -180,13 +172,21 @@ public class RpcClient {
 
         channel.shutdown();
 
-        return response.getNodesList().stream()
+        List<Node> nodes = response.getNodesList().stream()
                 .map(nodeInfo -> new Node(
                         new BigInteger(nodeInfo.getId()),
                         nodeInfo.getIp(),
                         nodeInfo.getPort()
                 ))
                 .collect(Collectors.toList());
+
+        for(Node node : nodes){
+            if(!localNode.containsNode(node.getId())){
+                localNode.addNode(node);
+            }
+        }
+
+        return nodes;
     }
 
     public void shutdown() {

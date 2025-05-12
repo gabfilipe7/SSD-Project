@@ -159,6 +159,15 @@ public class Blockchain {
         return mempool.values();
     }
 
+    public void printMempoolValues() {
+
+      for(Transaction tr : mempool.values()){
+          System.out.println(tr.toString());
+      }
+    }
+
+
+
     public void clearMempool() {
         mempool.clear();
     }

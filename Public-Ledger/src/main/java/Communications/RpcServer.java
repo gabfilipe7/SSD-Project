@@ -27,7 +27,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public RpcServer(Node localNode, Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
-        this.maxTransactionsPerBlock = 1;
+        this.maxTransactionsPerBlock = 3;
     }
 
     @Override

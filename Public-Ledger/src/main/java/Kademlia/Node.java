@@ -103,6 +103,16 @@ public class Node {
         }
         return allNeighbours;
     }
+    public boolean containsNode(BigInteger nodeId) {
+        for (KBucket bucket : routingTable) {
+            for (Node node : bucket.getNodes()) {
+                if (node.getId().equals(nodeId)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     public List<Node> findClosestNodes(BigInteger targetNodeId, int sizeNumber) {
         List<Node> closestNodes = new ArrayList<>();
@@ -222,6 +232,11 @@ public class Node {
     public int getK(){
         return this.K;
     }
+
+    public void setK(int k){
+        this.K = k;
+    }
+
     public String getIpAddress(){
         return this.ipAddress;
     }

@@ -1,21 +1,26 @@
 package org.example;
 
+import Auction.AuctionMapEntry;
 import Auction.Auction;
+import Auction.Bid;
 import Blockchain.Block;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Kademlia.Node;
+import Utils.StoreValue;
+import com.google.gson.Gson;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.security.PublicKey;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
-import java.util.UUID;
+import java.util.*;
+
+import static Utils.Utils.sha256;
 
 public class Main {
 
@@ -32,6 +37,7 @@ public class Main {
     //publisher subscriber
     //kademlia stores findvalues
     //fault mechanism
+    //merkle tree
 
     public static void main(String[] args) {
         boolean isBootstrap = false;
@@ -59,7 +65,7 @@ public class Main {
         this.rpcServer = new RpcServer(localNode, blockchain);
         this.startGrpcServer();
         this.rpcClient = new RpcClient(localNode, blockchain);
-
+        this.rpcServer.rpcClient = this.rpcClient;
         this.blockchain.createGenesisBlock();
 
 /*
@@ -78,8 +84,9 @@ public class Main {
             System.out.println("(2) List auctions");
             System.out.println("(3) Place Bid");
             System.out.println("(4) Close Auction");
-            System.out.println("(5) Exit");
-            System.out.println("(6) Show Mempool");
+            System.out.println("(5) Show Mempool");
+            System.out.println("(6) Subscribe to auction");
+            System.out.println("(7) Exit");
             System.out.println("----------------------");
             System.out.print("Select an option:");
 
@@ -100,12 +107,15 @@ public class Main {
                     closeAuction();
                     break;
                 case 5:
-                    System.out.println("Exiting...");
-                    return;
-                case 6:
                     System.out.println("Printing Mempool");
                     this.blockchain.printMempoolValues();
                     break;
+                case 6:
+                    subscribeAuction();
+                    break;
+                case 7:
+                    System.out.println("Exiting...");
+                    return;
                 default:
                     System.out.println("Invalid option. Try again.");
             }
@@ -119,28 +129,21 @@ public class Main {
         String productName = this.scanner.nextLine();
         System.out.println("----------------------");
         Auction newAuction = this.localNode.createAuction(productName, Instant.now());
+        String key = sha256("auction-info:" + newAuction.getAuctionId());
+        Gson gson = new Gson();
+        String newAuctionJson = gson.toJson(newAuction);
+        localNode.addKey(key, newAuctionJson);
         System.out.printf("The auction for the product %s was created successfully.%n", productName);
-        Transaction transaction = new Transaction(Transaction.TransactionType.CREATE_AUCTION,this.localNode.getPublicKey());
-        transaction.setAuctionId(newAuction.getAuctionId());
-        transaction.setStartTime(Instant.now());
-        transaction.setItemDescription(productName);
-        transaction.signTransaction(this.localNode.getPrivateKey());
-        if(blockchain.getMempoolSize() == (3 - 1) && this.localNode.isMiner()){
-            this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode, null);
-            Block lastBlock = blockchain.GetLastBlock();
-            Block newBlock = new Block(lastBlock.getIndex() + 1, lastBlock.getBlockHash(), new ArrayList<>(blockchain.getMempoolValues()));
-            blockchain.clearMempool();
-            this.rpcServer.startMining(newBlock);
-        }
-        else{
-            this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode, null);
-        }
+        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                StoreValue value = new StoreValue(StoreValue.Type.AUCTION,newAuctionJson);
+                RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
+            }
+        });
     }
 
     private void listAuctions(){
-        List<Auction> auctions = this.localNode.GetListedAuctions();
+        List<AuctionMapEntry> auctions = rpcClient.getAuctionListFromNetwork();
         if (auctions.isEmpty()) {
             System.out.println("There are no auctions to show.");
             return;
@@ -149,8 +152,8 @@ public class Main {
             System.out.println("This is the list of currently listed auctions:");
             System.out.println("----------------------------------------------");
             int count  = 0;
-            for(Auction auction : auctions){
-                System.out.printf("(%s) ---- %s ----- %s%n", count,auction.getItem(),auction.isClosed());
+            for(AuctionMapEntry auction : auctions){
+                System.out.printf("(%s) ---- %s ----- %s%n", count,auction.getItemName() ,auction.getOwnerNode());
                 count++;
             }
             System.out.print("Press any key to return to menu");
@@ -159,88 +162,53 @@ public class Main {
     }
 
     private void closeAuction() {
-        List<Auction> auctions = this.localNode.GetActiveAuctions();
+        System.out.print("Insert the Id of the auction you want to close: ");
 
-        if (auctions.isEmpty()) {
-            System.out.println("There are no auctions to close.");
+        String auctionIdInput = this.scanner.nextLine();
+
+        String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
+
+        Set<String> values = RpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
+        String auctionJson = values.iterator().next();
+
+        Gson gson = new Gson();
+        Auction auction = gson.fromJson(auctionJson, Auction.class);
+
+        if (auction == null) {
+            System.out.println("Auction not found.");
             return;
         }
 
-        System.out.println("Select an auction to close:");
-        System.out.println("------------------------------");
-        int count = 0;
-
-        for (Auction auction : auctions) {
-            System.out.printf("(%d) %s%n", count, auction.getItem());
-            count++;
-        }
-
-        System.out.print("Enter the number of the auction to close: ");
-
-        int choice = -1;
-        try {
-            choice = Integer.parseInt(scanner.nextLine());
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid input. Returning to menu.");
+        if (auction.isClosed()) {
+            System.out.println("Auction is already closed.");
             return;
         }
 
-        if (choice < 0 || choice >= auctions.size()) {
-            System.out.println("Invalid choice. Returning to menu.");
-            return;
-        }
+        auction.closeAuction();
 
-        Auction selectedAuction = auctions.get(choice);
+        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                StoreValue value = new StoreValue(StoreValue.Type.CLOSE,auctionIdInput);
+                RpcClient.store(node.getIpAddress(),node.getPort(),"auction-close"+ UUID.fromString(auctionIdInput),gson.toJson(value));
+            }
+            System.out.println("Auction closed successfully.");
+        });
 
-        boolean success = this.localNode.closeAuction(selectedAuction.getAuctionId());
-
-        if (success) {
-            System.out.printf("Auction for product %s closed successfully!%n", selectedAuction.getItem());
-            Transaction transaction = new Transaction(Transaction.TransactionType.CLOSE_AUCTION,this.localNode.getPublicKey());
-            transaction.setAuctionId(selectedAuction.getAuctionId());
-            transaction.setEndTime(Instant.now());
-            transaction.signTransaction(this.localNode.getPrivateKey());
-            this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-            RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode,null);
-        } else {
-            System.out.println("Failed to close auction. It might have already been closed or you might not be the creator of this auction.");
-        }
     }
 
     public void placeBid() {
-        List<Auction> auctions = this.localNode.GetActiveAuctions();
 
-        if (auctions.isEmpty()) {
-            System.out.println("There are no auctions to bid.");
-            return;
-        }
+        System.out.print("Insert the Id of the auction you want to bid: ");
 
-        System.out.println("Select an auction to bid:");
-        System.out.println("------------------------------");
-        int count = 0;
+        String auctionIdInput = this.scanner.nextLine();
 
-        for (Auction auction : auctions) {
-            System.out.printf("(%d) %s%n", count, auction.getItem());
-            count++;
-        }
+        String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
 
-        System.out.print("Enter the number of the auction to close: ");
+        Set<String> values = RpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
+        String auctionJson = values.iterator().next();
 
-        int choice = -1;
-        try {
-            choice = Integer.parseInt(scanner.nextLine());
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid input. Returning to menu.");
-            return;
-        }
-
-        if (choice < 0 || choice >= auctions.size()) {
-            System.out.println("Invalid choice. Returning to menu.");
-            return;
-        }
-
-        Auction auction = auctions.get(choice);
-
+        Gson gson = new Gson();
+        Auction auction = gson.fromJson(auctionJson, Auction.class);
 
 
         if (auction == null) {
@@ -253,19 +221,22 @@ public class Main {
             return;
         }
 
-        System.out.print("Insert the value of the bid:");
+        System.out.print("Insert the value of the bid for the item " + auction.getItem() + ": ");
         double bidValue = Integer.parseInt(scanner.nextLine());
 
-        auction.placeBid(this.localNode.getPublicKey(), bidValue);
-        System.out.println("Bid placed successfully.");
+        Bid bid = new Bid(auction.getAuctionId(), this.localNode.getPublicKey(),bidValue, Instant.now());
+        String bidJson = gson.toJson(bid);
 
-        Transaction transaction = new Transaction(Transaction.TransactionType.PLACE_BID ,this.localNode.getPublicKey());
-        transaction.setAuctionId(auction.getAuctionId());
-        transaction.setItemDescription(auction.getItem());
-        transaction.setBidAmount(bidValue);
-        transaction.signTransaction(this.localNode.getPrivateKey());
-        this.blockchain.addTransactionToMempool(transaction.getTransactionId(),transaction);
-        RpcClient.gossipTransaction(transaction, transaction.getSignature(), this.localNode,null);
+        String storeKey = sha256("bid:" + auction.getAuctionId());
+
+        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                StoreValue value = new StoreValue(StoreValue.Type.BID,bidJson);
+                RpcClient.store(node.getIpAddress(),node.getPort(),storeKey,gson.toJson(value));
+            }
+            System.out.println("Bid placed successfully.");
+        });
+
     }
 
     private void connectToBootstrapNodes() {
@@ -314,6 +285,17 @@ public class Main {
         }
 
         System.out.println("4 seconds passed. Now continuing with the next steps...");
+    }
+
+    private void subscribeAuction(){
+        System.out.println("Insert the Id of the auction you wish to subscribe: ");
+        String auctionIdInput = this.scanner.nextLine();
+        String key = sha256("auction-subs:" + auctionIdInput);
+        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                RpcClient.store(node.getIpAddress(),node.getPort(),key,localNode.getId().toString());
+            }
+        });
     }
 
 }

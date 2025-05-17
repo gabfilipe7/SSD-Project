@@ -53,7 +53,6 @@ message StoreRequest {
   string value = 2;
   SourceAddress src = 3;
   DestinationAddress dst = 4;
-  uint32 ttl = 5;
 }
 
 enum StoreResponseType {
@@ -72,7 +71,7 @@ message FindValueRequest {
 
 message FindValueResponse {
   bool found = 1;
-  string value = 2;
+  repeated string value = 2;
   repeated NodeInfo nodes = 3;
 }
 

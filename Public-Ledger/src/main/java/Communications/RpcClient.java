@@ -1,8 +1,13 @@
 package Communications;
 
+import Auction.Auction;
+import Auction.Bid;
+import Auction.AuctionMapEntry;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Utils.Utils;
+import Utils.StoreValue;
+import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
 import com.kademlia.grpc.*;
 import io.grpc.ManagedChannel;
@@ -15,6 +20,8 @@ import java.util.stream.Collectors;
 import Blockchain.Block;
 import java.math.BigInteger;
 import java.util.*;
+
+import static Utils.Utils.sha256;
 
 public class RpcClient {
 
@@ -75,31 +82,32 @@ public class RpcClient {
         }
     }
 
-
-
-    public CompletableFuture<Optional<Node>> findNode(BigInteger targetId) {
-        List<Node> initialPeers = this.localNode.findClosestNodes(targetId,  3);
+    public CompletableFuture<List<Node>> findNode(BigInteger targetId) {
+        List<Node> initialPeers = this.localNode.findClosestNodes(targetId, 3);
         Set<Node> alreadyChecked = new HashSet<>();
+        Set<Node> discovered = new HashSet<>(initialPeers);
 
-        return findNodeRecursive(targetId, initialPeers, alreadyChecked,20);
+        return findNodeRecursive(targetId, initialPeers, alreadyChecked, discovered, 20, localNode.getK());
     }
 
-    private CompletableFuture<Optional<Node>> findNodeRecursive(
+    private CompletableFuture<List<Node>> findNodeRecursive(
             BigInteger targetId,
             List<Node> peers,
             Set<Node> alreadyChecked,
-            int ttl
+            Set<Node> discovered,
+            int ttl,
+            int k
     ) {
-        if (ttl <= 0) {
-            List<Node> closestNodes = new ArrayList<>(alreadyChecked);
-            return CompletableFuture.completedFuture(Optional.ofNullable(closestNodes.isEmpty() ? null : closestNodes.get(0)));
+        if (ttl <= 0 || peers.isEmpty()) {
+            List<Node> sorted = new ArrayList<>(discovered);
+            sorted.sort(new Utils(this.localNode));
+            return CompletableFuture.completedFuture(sorted.stream().limit(k).collect(Collectors.toList()));
         }
 
         Utils nodeComparator = new Utils(this.localNode);
         peers.sort(nodeComparator);
 
         List<CompletableFuture<List<Node>>> tasks = new ArrayList<>();
-        Queue<Node> closerPeers = new ConcurrentLinkedQueue<>();
 
         for (Node peer : peers) {
             if (!alreadyChecked.contains(peer)) {
@@ -108,12 +116,10 @@ public class RpcClient {
                 tasks.add(CompletableFuture.supplyAsync(() -> {
                     try {
                         List<Node> response = findNode(peer, targetId);
-                        if (!response.isEmpty() && response.get(0).getId().compareTo(targetId) == 0) {
-                            return List.of(response.get(0));
-                        } else {
-                            closerPeers.addAll(response);
-                            return List.of();
+                        synchronized (discovered) {
+                            discovered.addAll(response);
                         }
+                        return response;
                     } catch (Exception e) {
                         return List.of();
                     }
@@ -123,37 +129,27 @@ public class RpcClient {
 
         return CompletableFuture.allOf(tasks.toArray(new CompletableFuture[0]))
                 .thenCompose(v -> {
+                    Set<Node> nextPeers = new HashSet<>();
                     for (CompletableFuture<List<Node>> task : tasks) {
                         List<Node> result = task.join();
-                        if (!result.isEmpty()) {
-                            Node firstNode = result.get(0);
-                            // Check if the first node is the target
-                            if (firstNode.getId().equals(targetId)) {
-                                return CompletableFuture.completedFuture(Optional.of(firstNode));
+                        for (Node node : result) {
+                            if (!alreadyChecked.contains(node)) {
+                                nextPeers.add(node);
                             }
                         }
                     }
 
-                    List<Node> closerPeersList = new ArrayList<>();
-                    for (CompletableFuture<List<Node>> task : tasks) {
-                        List<Node> result = task.join();
-                        closerPeersList.addAll(result);
-                    }
-
-                    Set<Node> uniquePeers = closerPeersList.stream()
-                            .filter(n -> !alreadyChecked.contains(n))
-                            .collect(Collectors.toSet());
-
-                    return findNodeRecursive(targetId, new ArrayList<>(uniquePeers), alreadyChecked, ttl - 1)
-                            .thenApply(optionalNode -> {
-                                if (optionalNode.isEmpty()) {
-                                    List<Node> closestNodes = new ArrayList<>(alreadyChecked);
-                                    return Optional.ofNullable(closestNodes.isEmpty() ? null : closestNodes.get(0));
-                                }
-                                return optionalNode;
-                            });
+                    return findNodeRecursive(
+                            targetId,
+                            new ArrayList<>(nextPeers),
+                            alreadyChecked,
+                            discovered,
+                            ttl - 1,
+                            k
+                    );
                 });
     }
+
 
     public List<Node> findNode(Node peer, BigInteger targetId) {
         ManagedChannel channel = ManagedChannelBuilder
@@ -195,7 +191,7 @@ public class RpcClient {
         }
     }
 
-    public static boolean storeKeyValue(String ip, int port, String key, String value, int ttl) {
+    public static boolean store(String ip, int port, String key, String value) {
         ManagedChannel channel = null;
         try {
             channel = ManagedChannelBuilder.forAddress(ip, port)
@@ -207,7 +203,6 @@ public class RpcClient {
             StoreRequest request = StoreRequest.newBuilder()
                     .setKey(key)
                     .setValue(value)
-                    .setTtl(ttl)
                     .build();
 
             StoreResponse response = stub.store(request);
@@ -223,7 +218,22 @@ public class RpcClient {
             }
         }
     }
-    public static Optional<String> findValue(String key, Node node) {
+
+    public static Optional<Set<String>> findValue(String key, Node node, int ttl) {
+        return findValue(key, node, ttl, new HashSet<>());
+    }
+
+    private static Optional<Set<String>> findValue(String key, Node node, int ttl, Set<String> visitedNodeIds) {
+        if (ttl <= 0) {
+            return Optional.empty();
+        }
+
+        String nodeId = node.getId().toString();
+        if (visitedNodeIds.contains(nodeId)) {
+            return Optional.empty();
+        }
+        visitedNodeIds.add(nodeId);
+
         ManagedChannel channel = ManagedChannelBuilder
                 .forAddress(node.getIpAddress(), node.getPort())
                 .usePlaintext()
@@ -239,9 +249,21 @@ public class RpcClient {
             FindValueResponse response = stub.findValue(request);
 
             if (response.getFound()) {
-                return Optional.of(response.getValue());
+                return Optional.of(new HashSet<>(response.getValueList()));
             } else {
-                //ver esta parte depois
+                for (NodeInfo nodeInfo : response.getNodesList()) {
+                    Node nextNode = new Node(
+                            new BigInteger(nodeInfo.getId()),
+                            nodeInfo.getIp(),
+                            nodeInfo.getPort()
+                    );
+
+                    Optional<Set<String>> result = findValue(key, nextNode, ttl - 1, visitedNodeIds);
+                    if (result.isPresent()) {
+                        return result;
+                    }
+                }
+
                 return Optional.empty();
             }
 
@@ -252,6 +274,9 @@ public class RpcClient {
             channel.shutdown();
         }
     }
+
+
+
 
     public static BlockMessage gossipBlock(Block block, Node localNode) {
         BlockMessage blockMessage;
@@ -452,5 +477,59 @@ public class RpcClient {
         return blocks;
     }
 
+    public List<AuctionMapEntry> getAuctionListFromNetwork() {
+        String key = Utils.sha256("auction_index");
+        Set<String> auctionEntries = new HashSet<>();
+        List<AuctionMapEntry> result = new ArrayList<>();
+
+        RpcClient.findValue(key, localNode, 10).ifPresent(auctionEntries::addAll);
+
+        for(String entry : new ArrayList<>(auctionEntries)){
+            result.add(AuctionMapEntry.fromString(entry));
+        }
+
+        Set<String> localAuctions = localNode.getValues(key);
+        for(String entry : localAuctions){
+            result.add(AuctionMapEntry.fromString(entry));
+        }
+
+        return result.stream()
+                .filter(AuctionMapEntry::getActive)
+                .collect(Collectors.toList());
+    }
+
+    public void PublishAuctionBid(UUID auctionId, String key, String payload) {
+        String auctionKey = sha256("auction-subs:" + auctionId);
+        Set<String> subscribers = localNode.getValues(auctionKey);
+        Gson gson = new Gson();
+        StoreValue value = new StoreValue(StoreValue.Type.BID,payload);
+        String payloadJson = gson.toJson(value);
+        for (String nodeId : subscribers) {
+            findNode(new BigInteger(nodeId)).thenAccept(closeNodes -> {
+                for(Node node : closeNodes){
+                    if(Objects.equals(node.getId().toString(), nodeId)){
+                        RpcClient.store(node.getIpAddress(),node.getPort(),key, payloadJson);
+                    }
+                }
+            });
+        }
+    }
+
+    public void PublishAuctionClose(String key, String payload) {
+        String auctionKey = sha256("auction-subs:" + payload);
+        Set<String> subscribers = localNode.getValues(auctionKey);
+        Gson gson = new Gson();
+        StoreValue value = new StoreValue(StoreValue.Type.CLOSE,payload);
+        String payloadJson = gson.toJson(value);
+        for (String nodeId : subscribers) {
+            findNode(new BigInteger(nodeId)).thenAccept(closeNodes -> {
+                for(Node node : closeNodes){
+                    if(Objects.equals(node.getId().toString(), nodeId)){
+                        RpcClient.store(node.getIpAddress(),node.getPort(),key, payloadJson);
+                    }
+                }
+            });
+        }
+    }
 
 }

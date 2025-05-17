@@ -7,6 +7,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.security.Security;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
@@ -29,7 +30,7 @@ public class Node {
     private ArrayList<KBucket> routingTable;
     private ExecutorService executorService;
     private boolean isMiner;
-    private Map<String, String> map;
+    private final Map<String, Set<String>> map = new ConcurrentHashMap<>();
     private Map<UUID, Auction> auctions = new HashMap<>();
     private KeyPair keyPair;
     private boolean isBootstrap = false;
@@ -41,7 +42,6 @@ public class Node {
     public Node(String ipAddress, int port, int k, boolean isBootstrap) {
         this.ipAddress = ipAddress;
         this.port = port;
-        this.map = new HashMap<>();
         this.routingTable = new ArrayList<>(256);
         for (int i = 0; i < 256; i++) {
             this.routingTable.add(new KBucket(k));
@@ -185,14 +185,14 @@ public class Node {
         this.isMiner = isMiner;
     }
 
+
     public void addKey(String key, String value) {
-        map.put(key, value);
+        map.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(value);
     }
 
-    public String getValue(String key) {
-        return map.get(key);
+    public Set<String> getValues(String key) {
+        return map.getOrDefault(key, new HashSet<>());
     }
-
     public boolean removeKey(String key) {
         if (map.containsKey(key)) {
             map.remove(key);

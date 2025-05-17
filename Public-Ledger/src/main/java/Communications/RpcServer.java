@@ -1,9 +1,13 @@
 package Communications;
 
+import Auction.Auction;
+import Auction.Bid;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Kademlia.Node;
 import Utils.Utils;
+import Utils.StoreValue;
+import com.google.gson.Gson;
 import com.kademlia.grpc.*;
 import Blockchain.Block;
 import io.grpc.Status;
@@ -16,8 +20,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.math.BigInteger;
 import java.util.stream.Collectors;
 
+import static Utils.Utils.sha256;
+
 public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
+    public static RpcClient rpcClient;
     private final Node localNode;
     private final Blockchain blockchain;
     private int maxTransactionsPerBlock;
@@ -167,9 +174,26 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void store(StoreRequest request, StreamObserver<StoreResponse> responseObserver) {
         try {
             String key = request.getKey();
-            String value = request.getValue();
 
-            localNode.addKey(key, value);
+            Gson gson = new Gson();
+            StoreValue value = gson.fromJson(request.getValue(), StoreValue.class);
+
+           // localNode.addKey(key, value.getPayload());
+
+            switch (value.getType()) {
+                case AUCTION:
+                    localNode.addKey(key, value.getPayload());
+                    break;
+                case SUBSCRIPTION:
+                  //  handleSubscription(key, value.getPayload());
+                    break;
+                case BID:
+                    handleBid(key, value.getPayload());
+                    break;
+                case CLOSE:
+                    handleClose(key, value.getPayload());
+                    break;
+            }
 
             StoreResponse response = StoreResponse.newBuilder()
                     .setResponseType(StoreResponseType.LOCAL_STORE)
@@ -211,13 +235,13 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void findValue(FindValueRequest request, StreamObserver<FindValueResponse> responseObserver) {
         String key = request.getKey();
 
-        String value = localNode.getValue(key);
+        Set<String> values = localNode.getValues(key);
 
         FindValueResponse.Builder responseBuilder = FindValueResponse.newBuilder();
 
-        if (value != null) {
+        if (values != null) {
             responseBuilder.setFound(true);
-            responseBuilder.setValue(value);
+            responseBuilder.addAllValue(values);
         } else {
             BigInteger targetId = Utils.hashKeyToId(key);
             List<Node> closest = localNode.findClosestNodes(targetId, localNode.getK());
@@ -267,5 +291,40 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         }
     }
 
+    public void handleBid(String key, String payload){
+        localNode.addKey(key, payload);
 
+        Gson gson = new Gson();
+        Bid bid = gson.fromJson(payload, Bid.class);
+        String auctionKey = sha256("auction-info:" + bid.getAuctionId());
+        String auctionJson = localNode.getValues(auctionKey).iterator().next();
+
+        Auction auction = gson.fromJson(auctionJson, Auction.class);
+
+        auction.placeBid(bid);
+
+        String auctionJsonUpdated = gson.toJson(auction);
+
+        localNode.addKey(auctionKey,auctionJsonUpdated );
+
+        rpcClient.PublishAuctionBid(bid.getAuctionId(), key, payload);
+    }
+
+    public void handleClose(String key, String payload) {
+        localNode.addKey(key, payload);
+
+        Gson gson = new Gson();
+        String auctionKey = sha256("auction-info:" + payload);
+        String auctionJson = localNode.getValues(auctionKey).iterator().next();
+
+        Auction auction = gson.fromJson(auctionJson, Auction.class);
+
+        auction.closeAuction();
+
+        String auctionJsonUpdated = gson.toJson(auction);
+
+        localNode.addKey(auctionKey,auctionJsonUpdated);
+
+        rpcClient.PublishAuctionClose(key, payload);
+    }
 }

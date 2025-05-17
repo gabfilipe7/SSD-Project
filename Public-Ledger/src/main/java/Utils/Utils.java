@@ -188,4 +188,19 @@ public class Utils implements Comparator<Node> {
             throw new JsonParseException(e);
         }
     }
+
+    public static String sha256(String input) {
+        SHA256Digest digest = new SHA256Digest();
+        byte[] inputBytes = input.getBytes(StandardCharsets.UTF_8);
+        digest.update(inputBytes, 0, inputBytes.length);
+
+        byte[] hash = new byte[digest.getDigestSize()];
+        digest.doFinal(hash, 0);
+
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            hexString.append(String.format("%02x", b));
+        }
+        return hexString.toString();
+    }
 }

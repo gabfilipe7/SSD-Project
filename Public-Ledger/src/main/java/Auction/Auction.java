@@ -27,9 +27,16 @@ public class Auction {
 
     public void placeBid(PublicKey bidder, double amount) {
         if (!isClosed /*&& Instant.now().isBefore(endTime)*/) {
-            bids.add(new Bid(bidder, amount, Instant.now()));
+            bids.add(new Bid(this.getAuctionId(), bidder, amount, Instant.now()));
         }
     }
+
+    public void placeBid(Bid bid) {
+        if (!isClosed /*&& Instant.now().isBefore(endTime)*/) {
+            bids.add(bid);
+        }
+    }
+
 
     public void closeAuction() {
         this.isClosed = true;

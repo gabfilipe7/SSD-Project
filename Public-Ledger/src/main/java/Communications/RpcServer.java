@@ -178,14 +178,12 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             Gson gson = new Gson();
             StoreValue value = gson.fromJson(request.getValue(), StoreValue.class);
 
-           // localNode.addKey(key, value.getPayload());
-
             switch (value.getType()) {
                 case AUCTION:
-                    localNode.addKey(key, value.getPayload());
+                    handleAuction(key, value.getPayload());
                     break;
                 case SUBSCRIPTION:
-                  //  handleSubscription(key, value.getPayload());
+                    handleSubscription(key, value.getPayload());
                     break;
                 case BID:
                     handleBid(key, value.getPayload());
@@ -326,5 +324,11 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         localNode.addKey(auctionKey,auctionJsonUpdated);
 
         rpcClient.PublishAuctionClose(key, payload);
+    }
+    public void handleAuction(String key, String payload){
+        localNode.addKey(key,payload);
+    }
+    public void handleSubscription(String key, String payload){
+        localNode.addKey(key,payload);
     }
 }

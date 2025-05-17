@@ -1,11 +1,9 @@
-package org.example;
+package Main;
 
 import Auction.AuctionMapEntry;
 import Auction.Auction;
 import Auction.Bid;
-import Blockchain.Block;
 import Blockchain.Blockchain;
-import Blockchain.Transaction;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Kademlia.Node;
@@ -16,7 +14,6 @@ import io.grpc.ServerBuilder;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.security.PublicKey;
 import java.time.Instant;
 import java.util.*;
 
@@ -34,7 +31,6 @@ public class Main {
     //proof of reputation
     //segurança resistance attacks
     //leilão mechanisms
-    //publisher subscriber
     //kademlia stores findvalues
     //fault mechanism
     //merkle tree
@@ -185,13 +181,14 @@ public class Main {
         }
 
         auction.closeAuction();
-
         rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.CLOSE,auctionIdInput);
                 RpcClient.store(node.getIpAddress(),node.getPort(),"auction-close"+ UUID.fromString(auctionIdInput),gson.toJson(value));
             }
             System.out.println("Auction closed successfully.");
+            Bid winningBid = auction.getWinningBid().orElse(null);
+
         });
 
     }
@@ -291,9 +288,11 @@ public class Main {
         System.out.println("Insert the Id of the auction you wish to subscribe: ");
         String auctionIdInput = this.scanner.nextLine();
         String key = sha256("auction-subs:" + auctionIdInput);
+        Gson gson = new Gson();
         rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
             for(Node node : nodes){
-                RpcClient.store(node.getIpAddress(),node.getPort(),key,localNode.getId().toString());
+                StoreValue value = new StoreValue(StoreValue.Type.SUBSCRIPTION ,localNode.getId().toString());
+                RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
             }
         });
     }

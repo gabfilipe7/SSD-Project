@@ -5,6 +5,7 @@ import Auction.Bid;
 import Auction.AuctionMapEntry;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
+import Identity.Reputation;
 import Utils.Utils;
 import Utils.StoreValue;
 import com.google.gson.Gson;
@@ -15,6 +16,7 @@ import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
 
+import java.time.Instant;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import Blockchain.Block;
@@ -556,6 +558,58 @@ public class RpcClient {
         }
     }
 
+    public void gossipReputation(Reputation reputation, BigInteger targetNodeId, byte[] signature, Node localNode, BigInteger senderNodeId) {
+        GossipReputationRequest request;
+
+        try {
+            request = GossipReputationRequest.newBuilder()
+                    .setReputationMessageId(reputation.getReputationId().toString())
+                    .setSenderId(localNode.getId().toString())
+                    .setNodeId(targetNodeId.toString())
+                    .setScore(reputation.getScore())
+                    .setLastUpdated(reputation.getLastUpdated().toEpochMilli())
+                    .setSignature(ByteString.copyFrom(signature))
+                    .build();
+        } catch (Exception e) {
+            System.err.println("Failed to build GossipReputationRequest: " + e.getMessage());
+            return;
+        }
+
+        for (Node neighbor : localNode.getAllNeighbours()) {
+
+            ManagedChannel channel = null;
+            try {
+                channel = ManagedChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())
+                        .usePlaintext()
+                        .build();
+
+                KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+                GossipReputationResponse response = stub
+                        .withDeadlineAfter(5, TimeUnit.SECONDS)
+                        .gossipReputation(request);
+
+                if (response.getAccepted()) {
+                    System.out.println("Successfully gossiped reputation to " + neighbor.getId());
+                } else {
+                    System.out.println("Gossip rejected by " + neighbor.getId());
+                }
+
+            } catch (StatusRuntimeException e) {
+                System.err.println("gRPC error while gossiping to " + neighbor.getId() + ": " + e.getStatus().getDescription());
+            } catch (Exception e) {
+                System.err.println("Error while gossiping to " + neighbor.getId() + ": " + e.getMessage());
+            } finally {
+                if (channel != null) {
+                    try {
+                        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        System.err.println("Channel shutdown interrupted: " + e.getMessage());
+                    }
+                }
+            }
+        }
+    }
 
 
 }

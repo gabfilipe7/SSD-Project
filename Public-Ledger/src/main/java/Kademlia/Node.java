@@ -4,20 +4,17 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.*;
-import java.security.spec.ECGenParameterSpec;
 import java.security.Security;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
-import Utils.Authentication;
+import Identity.Authentication;
+import Identity.Reputation;
 import Auction.Auction;
-import Blockchain.Block;
-import Blockchain.Transaction;
 import Utils.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.checkerframework.checker.units.qual.A;
 
 
 public class Node {
@@ -34,6 +31,7 @@ public class Node {
     private Map<UUID, Auction> auctions = new HashMap<>();
     private KeyPair keyPair;
     private boolean isBootstrap = false;
+    public final Map<BigInteger, Reputation> reputationMap = new HashMap<>();
 
     static {
         Security.addProvider(new BouncyCastleProvider());
@@ -104,6 +102,11 @@ public class Node {
         int index = getTargetBucketIndex(node.getId());
         KBucket bucket = this.routingTable.get(index);
         boolean success = bucket.addNode(node);
+
+        Reputation rep = reputationMap.get(node.getId());
+        if (rep == null) {
+            reputationMap.put(node.getId(), new Reputation(0,Instant.now()));
+        }
         return success;
     }
 
@@ -248,6 +251,8 @@ public class Node {
     public Auction getAuction(UUID auctionId) {
         return auctions.get(auctionId);
     }
+
+
 
     public int getK(){
         return this.K;

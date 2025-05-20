@@ -15,6 +15,7 @@ service KademliaService {
   rpc GossipBlock(BlockMessage) returns (GossipResponse);
   rpc GetBlocksFrom (GetBlocksRequest) returns (GetBlocksResponse);
   rpc SendPaymentRequest(PaymentRequest) returns (PaymentRequestResponse);
+  rpc GossipReputation (GossipReputationRequest) returns (GossipReputationResponse);
 }
 
 message PingRequest {
@@ -129,4 +130,17 @@ message PaymentRequest {
 
 message PaymentRequestResponse {
   bool success = 1;
+}
+
+message GossipReputationRequest {
+  string reputationMessageId = 1;
+  string senderId = 2;
+  string nodeId = 3;
+  double score = 4;
+  int64 lastUpdated = 5;
+  bytes signature = 6;
+}
+
+message GossipReputationResponse {
+  bool accepted = 1;
 }

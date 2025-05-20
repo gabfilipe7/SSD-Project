@@ -4,6 +4,7 @@ import Auction.Auction;
 import Auction.Bid;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
+import Identity.Reputation;
 import Kademlia.Node;
 import Utils.Utils;
 import Utils.StoreValue;
@@ -32,6 +33,9 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     private volatile boolean isMining = false;
     private volatile Block currentBlockMining;
     private Thread miningThread;
+    private Set<UUID> reputationIds = new HashSet<>();
+
+
     public RpcServer(Node localNode, Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
@@ -316,6 +320,83 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             blockchain.addTransactionToMempool(assembledTransaction.getTransactionId(), assembledTransaction);
         }
     }
+
+    @Override
+    public void gossipReputation(GossipReputationRequest request, StreamObserver<GossipReputationResponse> responseObserver) {
+        try {
+            UUID reputationId = UUID.fromString(request.getReputationMessageId());
+
+            if (reputationIds.contains(reputationId)) {
+                responseObserver.onNext(GossipReputationResponse.newBuilder()
+                        .setAccepted(true)
+                        .build());
+                responseObserver.onCompleted();
+            }
+            else{
+                reputationIds.add(reputationId);
+            }
+
+            BigInteger senderId = new BigInteger(request.getSenderId());
+            BigInteger targetNodeId = new BigInteger(request.getNodeId());
+            Instant incomingTime = Instant.ofEpochMilli(request.getLastUpdated());
+            double incomingScore = request.getScore();
+
+            Reputation senderReputation = localNode.reputationMap.get(senderId);
+            if (senderReputation == null || senderReputation.getScore() < 0.2) {
+                responseObserver.onNext(GossipReputationResponse.newBuilder()
+                        .setAccepted(false)
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            Reputation localRep = localNode.reputationMap.get(targetNodeId);
+            double localScore = (localRep != null) ? localRep.getScore() : 0.0;
+            double diff = Math.abs(localScore - incomingScore);
+
+            if (localRep != null && !incomingTime.isAfter(localRep.getLastUpdated())) {
+                responseObserver.onNext(GossipReputationResponse.newBuilder()
+                        .setAccepted(false)
+                        .build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            double senderScore = Math.min(senderReputation.getScore(), 1.0);
+            double weight;
+
+            if (diff < 0.1) {
+                weight = senderScore;
+            } else if (diff > 0.5) {
+                weight = Math.min(0.2, senderScore * 0.5);
+            } else {
+                weight = senderScore * (1.0 - diff);
+            }
+
+            double newScore = (1 - weight) * localScore + weight * incomingScore;
+
+            Reputation updatedRep = new Reputation(newScore,incomingTime);
+
+            updatedRep.setReputationId(reputationId);
+
+            localNode.reputationMap.put(targetNodeId, updatedRep);
+
+            byte[] signature = updatedRep.signReputation(localNode.getPrivateKey(), targetNodeId);
+            rpcClient.gossipReputation(updatedRep, targetNodeId, signature ,localNode, new BigInteger(request.getSenderId()));
+
+            responseObserver.onNext(GossipReputationResponse.newBuilder()
+                .setAccepted(true)
+                .build());
+            responseObserver.onCompleted();
+
+        } catch (Exception e) {
+            responseObserver.onNext(GossipReputationResponse.newBuilder()
+                    .setAccepted(false)
+                    .build());
+            responseObserver.onCompleted();
+        }
+    }
+
 
     public void startMining(Block blockToMine) {
         isMining = true;

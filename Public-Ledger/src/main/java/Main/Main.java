@@ -7,7 +7,7 @@ import Blockchain.Blockchain;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Kademlia.Node;
-import Utils.Authentication;
+import Identity.Authentication;
 import Utils.StoreValue;
 import com.google.gson.Gson;
 import io.grpc.Server;
@@ -32,8 +32,6 @@ public class Main {
     //fazer bootstrap hardwire e configurar bash para inicilizar direto
     //proof of reputation
     //segurança resistance attacks
-    //leilão mechanisms
-    //kademlia stores findvalues
     //fault mechanism
     //merkle tree
 

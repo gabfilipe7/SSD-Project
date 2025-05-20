@@ -1,5 +1,6 @@
 package Kademlia;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.*;
@@ -10,7 +11,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
-
+import Utils.Authentication;
 import Auction.Auction;
 import Blockchain.Block;
 import Blockchain.Transaction;
@@ -38,7 +39,7 @@ public class Node {
         Security.addProvider(new BouncyCastleProvider());
     }
 
-    public Node(String ipAddress, int port, int k, boolean isBootstrap) {
+    public Node(String ipAddress, int port, int k, boolean isBootstrap, KeyPair keys) {
         this.ipAddress = ipAddress;
         this.port = port;
         this.routingTable = new ArrayList<>(256);
@@ -48,15 +49,35 @@ public class Node {
         this.isBootstrap = isBootstrap;
 
         try{
-            KeyPair keys = generateKeys();
-            this.keyPair = keys;
-            byte[] encodedPK = keys.getPublic().getEncoded();
+            if (keys == null) {
+                keys = generateKeys();
+                this.keyPair = keys;
+                byte[] encodedPK = keys.getPublic().getEncoded();
 
-            MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
-            byte[] hashBytes = digest.digest(encodedPK);
+                MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
+                byte[] hashBytes = digest.digest(encodedPK);
 
 
-            this.nodeId = new BigInteger(1, hashBytes);
+                this.nodeId = new BigInteger(1, hashBytes);
+                try {
+                    Authentication.saveKeyPair(keys);
+                    System.out.println("Generated new keys and saved to file.");
+                } catch (IOException e) {
+                    System.err.println("Failed to save keys: " + e.getMessage());
+                }
+            }
+            else{
+                this.keyPair = keys;
+                byte[] encodedPK = keys.getPublic().getEncoded();
+
+                MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
+                byte[] hashBytes = digest.digest(encodedPK);
+
+
+                this.nodeId = new BigInteger(1, hashBytes);
+            }
+
+
         }
         catch (Exception e) {
             throw new RuntimeException(e);

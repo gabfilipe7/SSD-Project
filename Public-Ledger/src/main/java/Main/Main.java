@@ -57,7 +57,21 @@ public class Main {
     }
 
     public void boot(boolean isBootstrap, int port ) {
-        this.localNode = new Node("127.0.0.1",port,20,isBootstrap);
+
+        KeyPair keys = null;
+        String algorithm = "RSA";
+
+
+        if (Authentication.keysExist()) {
+            try {
+                keys = Authentication.loadKeyPair(algorithm);
+                System.out.println("Loaded keys from file.");
+            } catch (Exception e) {
+                System.err.println("Failed to load keys, generating new keys.");
+            }
+        }
+
+        this.localNode = new Node("127.0.0.1",port,20,isBootstrap,keys);
         this.localNode.setIsMiner(true);
         this.localNode.setK(20);
         this.rpcServer = new RpcServer(localNode, blockchain);
@@ -66,12 +80,6 @@ public class Main {
         this.rpcServer.rpcClient = this.rpcClient;
         this.blockchain.createGenesisBlock();
 
-        KeyPair keys = null;
-        String algorithm = "RSA";
-
-
-// Now pass keys to your Node constructor, e.g.,
-// this.localNode = new Node("127.0.0.1", port, 20, isBootstrap, keys);
 
 /*
         if(port==5000){
@@ -255,8 +263,8 @@ public class Main {
 
     private void connectToBootstrapNodes() {
         List<Node> bootstrapNodes = List.of(
-                new Node( "127.0.0.1", 5000,20,true),
-                new Node( "127.0.0.1", 5001,20,true)
+                new Node( "127.0.0.1", 5000,20,true,null),
+                new Node( "127.0.0.1", 5001,20,true,null)
         );
 
         for (Node bootstrap : bootstrapNodes) {

@@ -13,6 +13,7 @@ import Blockchain.Block;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -90,17 +91,13 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             assembledTransaction.setSignature(request.getSignature().toByteArray());
             boolean valid = assembledTransaction.validateTransaction();
             if (valid) {
+
+                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && tx.getTargetPublicKey().equals(localNode.getPublicKey())){
+                    this.localNode.updateBalance(assembledTransaction.getAmount());
+                }
+
                 RpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
-                if(blockchain.getMempoolSize() == (maxTransactionsPerBlock - 1) && this.localNode.isMiner()){
-                    blockchain.addTransactionToMempool(UUID.fromString(tx.getTransactionId()), assembledTransaction);
-                    Block lastBlock = blockchain.GetLastBlock();
-                    Block newBlock = new Block(lastBlock.getIndex() + 1, lastBlock.getBlockHash(), new ArrayList<>(blockchain.getMempoolValues()));
-                    blockchain.clearMempool();
-                    startMining(newBlock);
-                }
-                else{
-                    blockchain.addTransactionToMempool(UUID.fromString(tx.getTransactionId()), assembledTransaction);
-                }
+                manageMempool(assembledTransaction);
             }
 
             responseObserver.onNext(GossipResponse.newBuilder().setSuccess(valid).build());
@@ -260,6 +257,65 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         responseObserver.onCompleted();
     }
 
+    @Override
+    public void sendPaymentRequest(PaymentRequest request, StreamObserver<PaymentRequestResponse> responseObserver) {
+        String toNodeId = request.getTo();
+        if (!toNodeId.equals(this.localNode.getId().toString())) {
+            responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        double amount = request.getAmount();
+        String auctionId = request.getAuctionId();
+
+        String key = sha256("bid:" + auctionId);
+        Set<String> values = this.localNode.getValues(key);
+
+        int maxBidValue = values.stream()
+                .mapToInt(Integer::parseInt)
+                .max()
+                .orElse(0);
+
+
+        if(maxBidValue != amount){
+            responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        if (this.localNode.getBalance() >= amount) {
+            this.localNode.updateBalance(-amount);
+
+            Transaction transaction = new Transaction(Transaction.TransactionType.AuctionPayment, this.localNode.getPublicKey(),  (double) amount);
+
+            transaction.signTransaction(this.localNode.getPrivateKey());
+
+            RpcClient.gossipTransaction(transaction, transaction.getSignature(), localNode, localNode.getId());
+
+            manageMempool(transaction);
+
+            responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(true).build());
+        } else {
+            System.out.println("Insufficient balance for auction " + auctionId);
+            responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
+        }
+
+        responseObserver.onCompleted();
+    }
+
+    private void manageMempool(Transaction assembledTransaction){
+        if(blockchain.getMempoolSize() == (maxTransactionsPerBlock - 1) && this.localNode.isMiner()){
+            blockchain.addTransactionToMempool(assembledTransaction.getTransactionId(), assembledTransaction);
+            Block lastBlock = blockchain.GetLastBlock();
+            Block newBlock = new Block(lastBlock.getIndex() + 1, lastBlock.getBlockHash(), new ArrayList<>(blockchain.getMempoolValues()));
+            blockchain.clearMempool();
+            startMining(newBlock);
+        }
+        else{
+            blockchain.addTransactionToMempool(assembledTransaction.getTransactionId(), assembledTransaction);
+        }
+    }
 
     public void startMining(Block blockToMine) {
         isMining = true;
@@ -268,7 +324,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             blockToMine.mine(() -> isMining);
             if (isMining && blockchain.verifyBlock(blockToMine)) {
                 blockchain.AddNewBlock(blockToMine);
-                localNode.handleBlockTransactions(blockToMine);
                 RpcClient.gossipBlock(blockToMine, localNode);
                 isMining = false;
                 currentBlockMining = null;

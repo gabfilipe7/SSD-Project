@@ -13,9 +13,7 @@ import java.util.UUID;
 public class Transaction {
 
     public enum TransactionType {
-        CREATE_AUCTION,
-        PLACE_BID,
-        CLOSE_AUCTION
+        AuctionPayment
     }
 
     private UUID transactionId;
@@ -23,20 +21,21 @@ public class Transaction {
     private PublicKey sender;
     private TransactionType type;
     private byte[] signature;
+    private Double amount;
 
     private UUID auctionId;
     private String itemDescription;
     private Instant startTime;
     private Instant endTime;
-    private Double bidAmount;
 
     public Transaction() {}
 
-    public Transaction(TransactionType type, PublicKey sender) {
+    public Transaction(TransactionType type, PublicKey sender, Double amount) {
         this.transactionId = UUID.randomUUID();
         this.timestamp = Instant.now();
         this.sender = sender;
         this.type = type;
+        this.amount = amount;
     }
     public Transaction(UUID transactionId, TransactionType type,Instant timestamp, PublicKey sender) {
         this.transactionId = transactionId;
@@ -77,7 +76,7 @@ public class Transaction {
                             (itemDescription != null ? itemDescription : "") +
                             (startTime != null ? startTime.toString() : "") +
                             (endTime != null ? endTime.toString() : "") +
-                            (bidAmount != null ? bidAmount.toString() : "");
+                            (amount != null ? amount.toString() : "");
 
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
@@ -106,7 +105,7 @@ public class Transaction {
                             (itemDescription != null ? itemDescription : "") +
                             (startTime != null ? startTime.toString() : "") +
                             (endTime != null ? endTime.toString() : "") +
-                            (bidAmount != null ? bidAmount.toString() : "");
+                            (amount != null ? amount.toString() : "");
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
@@ -137,7 +136,7 @@ public class Transaction {
     public String getItemDescription() { return itemDescription; }
     public Instant getStartTime() { return startTime; }
     public Instant getEndTime() { return endTime; }
-    public Double getBidAmount() { return bidAmount; }
+    public Double getAmount() { return amount; }
     public void setTransactionId(UUID transactionId) {
         this.transactionId = transactionId;
     }
@@ -170,8 +169,8 @@ public class Transaction {
         this.endTime = endTime;
     }
 
-    public void setBidAmount(Double bidAmount) {
-        this.bidAmount = bidAmount;
+    public void setAmount(Double amount) {
+        this.amount = amount;
     }
 
     @Override
@@ -185,7 +184,7 @@ public class Transaction {
                 ", itemDescription='" + (itemDescription != null ? itemDescription : "null") + '\'' +
                 ", startTime='" + (startTime != null ? startTime : "null") + '\'' +
                 ", endTime='" + (endTime != null ? endTime : "null") + '\'' +
-                ", bidAmount='" + (bidAmount != null ? bidAmount : "null") + '\'' +
+                ", bidAmount='" + (amount != null ? amount : "null") + '\'' +
                 '}';
     }
 

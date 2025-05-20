@@ -7,6 +7,7 @@ import Blockchain.Blockchain;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Kademlia.Node;
+import Utils.Authentication;
 import Utils.StoreValue;
 import com.google.gson.Gson;
 import io.grpc.Server;
@@ -14,6 +15,7 @@ import io.grpc.ServerBuilder;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.security.KeyPair;
 import java.time.Instant;
 import java.util.*;
 
@@ -63,6 +65,13 @@ public class Main {
         this.rpcClient = new RpcClient(localNode, blockchain);
         this.rpcServer.rpcClient = this.rpcClient;
         this.blockchain.createGenesisBlock();
+
+        KeyPair keys = null;
+        String algorithm = "RSA";
+
+
+// Now pass keys to your Node constructor, e.g.,
+// this.localNode = new Node("127.0.0.1", port, 20, isBootstrap, keys);
 
 /*
         if(port==5000){
@@ -189,6 +198,14 @@ public class Main {
             System.out.println("Auction closed successfully.");
             Bid winningBid = auction.getWinningBid().orElse(null);
 
+            assert winningBid != null;
+            rpcClient.findNode(winningBid.getBidder()).thenAccept(closeToWinner -> {
+                for(Node node : closeToWinner){
+                    if(node.getId().equals(winningBid.getBidder())){
+                        rpcClient.sendPaymentRequest(node, winningBid.getAmount(),winningBid.getAuctionId());
+                    }
+                }
+            });
         });
 
     }
@@ -221,7 +238,7 @@ public class Main {
         System.out.print("Insert the value of the bid for the item " + auction.getItem() + ": ");
         double bidValue = Integer.parseInt(scanner.nextLine());
 
-        Bid bid = new Bid(auction.getAuctionId(), this.localNode.getPublicKey(),bidValue, Instant.now());
+        Bid bid = new Bid(auction.getAuctionId(), this.localNode.getId(),bidValue, Instant.now());
         String bidJson = gson.toJson(bid);
 
         String storeKey = sha256("bid:" + auction.getAuctionId());

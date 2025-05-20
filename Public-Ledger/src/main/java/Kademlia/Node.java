@@ -18,8 +18,6 @@ import Utils.Utils;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.checkerframework.checker.units.qual.A;
 
-import static Blockchain.Transaction.TransactionType.CLOSE_AUCTION;
-import static Blockchain.Transaction.TransactionType.CREATE_AUCTION;
 
 public class Node {
 
@@ -30,6 +28,7 @@ public class Node {
     private ArrayList<KBucket> routingTable;
     private ExecutorService executorService;
     private boolean isMiner;
+    private double balance = 100;
     private final Map<String, Set<String>> map = new ConcurrentHashMap<>();
     private Map<UUID, Auction> auctions = new HashMap<>();
     private KeyPair keyPair;
@@ -202,7 +201,7 @@ public class Node {
     }
 
     public Auction createAuction(String itemDescription, Instant startTime) {
-        Auction newAuction = new Auction(UUID.randomUUID(), itemDescription, this.getPublicKey(), startTime);
+        Auction newAuction = new Auction(UUID.randomUUID(), itemDescription, this.getId(), startTime);
         auctions.put(newAuction.getAuctionId(), newAuction);
         return newAuction;
     }
@@ -216,7 +215,7 @@ public class Node {
         return false;
     }
 
-    public boolean placeBid(UUID auctionId, PublicKey bidder, double bidAmount) {
+    public boolean placeBid(UUID auctionId, BigInteger bidder, double bidAmount) {
         Auction auction = auctions.get(auctionId);
         if (auction != null && !auction.isClosed() && Instant.now().isAfter(auction.getStartTime())) {
             auction.placeBid(bidder, bidAmount);
@@ -265,16 +264,12 @@ public class Node {
         this.auctions.put(a.getAuctionId(),a);
     }
 
-    public void handleBlockTransactions(Block block){
-        for(Transaction tr : block.getTransactions()){
-            if(tr.getType().equals(CREATE_AUCTION)){
-                this.addAuctionToAuctions(new Auction(tr.getAuctionId(),tr.getItemDescription(),tr.getSender(),tr.getStartTime()));
-            }
-            if(tr.getType().equals(CLOSE_AUCTION)){
-                this.closeAuction(tr.getAuctionId());
-            }
 
-        }
+    public double getBalance() {
+        return balance;
     }
 
+    public void updateBalance(double value) {
+        this.balance = this.balance + value;
+    }
 }

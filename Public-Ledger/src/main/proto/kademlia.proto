@@ -14,6 +14,7 @@ service KademliaService {
   rpc GossipTransaction(TransactionMessage) returns (GossipResponse);
   rpc GossipBlock(BlockMessage) returns (GossipResponse);
   rpc GetBlocksFrom (GetBlocksRequest) returns (GetBlocksResponse);
+  rpc SendPaymentRequest(PaymentRequest) returns (PaymentRequestResponse);
 }
 
 message PingRequest {
@@ -87,12 +88,10 @@ message Transaction {
   uint32 type = 2;
   string timestamp = 3;
   bytes senderPublicKey = 4;
-  string auctionId = 7;
-  string itemDescription = 8;
-  string startTime = 9;
-  string endTime = 10;
-  string bidAmount = 11;
-  bytes signature = 12;
+  bytes targetPublicKey = 5;
+  string auctionId = 6;
+  string amount = 7;
+  bytes signature = 8;
 }
 
 message GossipResponse {
@@ -121,3 +120,13 @@ message GetBlocksResponse {
   repeated BlockMessage blocks = 1;
 }
 
+message PaymentRequest {
+  string auctionId = 1;
+  string from = 2;
+  string to = 3;
+  double amount= 4;
+}
+
+message PaymentRequestResponse {
+  bool success = 1;
+}

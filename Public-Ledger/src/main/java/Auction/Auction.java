@@ -2,6 +2,7 @@ package Auction;
 
 import com.google.gson.*;
 
+import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
@@ -11,13 +12,13 @@ import java.util.*;
 public class Auction {
     private UUID auctionId;
     private String itemDescription;
-    private PublicKey owner;
+    private BigInteger owner;
     private Instant startTime;
     private Instant endTime;
     private boolean isClosed;
     private List<Bid> bids = new ArrayList<>();
 
-    public Auction(UUID auctionId, String itemDescription, PublicKey owner, Instant startTime) {
+    public Auction(UUID auctionId, String itemDescription, BigInteger owner, Instant startTime) {
         this.auctionId = auctionId;
         this.itemDescription = itemDescription;
         this.owner = owner;
@@ -25,7 +26,7 @@ public class Auction {
         this.isClosed = false;
     }
 
-    public void placeBid(PublicKey bidder, double amount) {
+    public void placeBid(BigInteger bidder, double amount) {
         if (!isClosed /*&& Instant.now().isBefore(endTime)*/) {
             bids.add(new Bid(this.getAuctionId(), bidder, amount, Instant.now()));
         }
@@ -71,7 +72,7 @@ public class Auction {
         return gson.fromJson(json, Auction.class);
     }
 
-    public PublicKey getWinner() {
+    public BigInteger getWinner() {
         if (bids.isEmpty()) {
             return null;
         }
@@ -87,6 +88,6 @@ public class Auction {
     public Instant getStartTime() {return startTime; }
     public UUID getAuctionId() { return auctionId; }
     public boolean isClosed() { return isClosed; }
-    public PublicKey getOwner() { return owner; }
+    public BigInteger getOwner() { return owner; }
     public List<Bid> getBids() { return bids; }
 }

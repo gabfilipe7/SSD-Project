@@ -349,10 +349,7 @@ public class RpcClient {
                     .setTimestamp(transaction.getTimestamp() != null ? transaction.getTimestamp().toString() : "")
                     .setSenderPublicKey(transaction.getSender() != null ? ByteString.copyFrom(transaction.getSender().getEncoded()) : ByteString.EMPTY)
                     .setAuctionId(transaction.getAuctionId() != null ? transaction.getAuctionId().toString() : "")
-                    .setItemDescription(transaction.getItemDescription() != null ? transaction.getItemDescription() : "")
-                    .setStartTime(transaction.getStartTime() != null ? transaction.getStartTime().toString() : "")
-                    .setEndTime(transaction.getEndTime() != null ? transaction.getEndTime().toString() : "")
-                    .setBidAmount(transaction.getBidAmount() != null ? transaction.getBidAmount().toString() : "")
+                    .setAmount(transaction.getAmount() != null ? transaction.getAmount().toString() : "")
                     .build();
 
 
@@ -531,5 +528,34 @@ public class RpcClient {
             });
         }
     }
+
+    public void sendPaymentRequest(Node winner, double amount, UUID auctionId) {
+        try {
+            PaymentRequest request = PaymentRequest.newBuilder()
+                    .setAuctionId(auctionId.toString())
+                    .setFrom(this.localNode.getId().toString())
+                    .setTo(winner.getId().toString())
+                    .setAmount(amount)
+                    .build();
+
+            ManagedChannel channel = ManagedChannelBuilder.forAddress(winner.getIpAddress(),winner.getPort())
+                    .usePlaintext()
+                    .build();
+
+            KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+            PaymentRequestResponse response = stub.sendPaymentRequest(request);
+
+            if (response.getSuccess()) {
+                System.out.println("Payment request sent to winner: " + winner.getId());
+            } else {
+                System.out.println("Payment request rejected or failed: " + winner.getId());
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to send payment request to " + winner.getId() + ": " + e.getMessage());
+        }
+    }
+
+
 
 }

@@ -116,17 +116,8 @@ public class Utils implements Comparator<Node> {
         if (!transaction.getAuctionId().isEmpty()) {
             tx.setAuctionId(UUID.fromString(transaction.getAuctionId()));
         }
-        if (!transaction.getItemDescription().isEmpty()) {
-            tx.setItemDescription(transaction.getItemDescription());
-        }
-        if (!transaction.getStartTime().isEmpty()) {
-            tx.setStartTime(Instant.parse(transaction.getStartTime()));
-        }
-        if (!transaction.getEndTime().isEmpty()) {
-            tx.setEndTime(Instant.parse(transaction.getEndTime()));
-        }
-        if (!transaction.getBidAmount().isEmpty()) {
-            tx.setBidAmount(Double.parseDouble(transaction.getBidAmount()));
+        if (!transaction.getAmount().isEmpty()) {
+            tx.setAmount(Double.parseDouble(transaction.getAmount()));
         }
         if (!transaction.getSignature().isEmpty()) {
             tx.setSignature(transaction.getSignature().toByteArray());
@@ -143,10 +134,7 @@ public class Utils implements Comparator<Node> {
                 .setTimestamp(transaction.getTimestamp() != null ? transaction.getTimestamp().toString() : "")
                 .setSenderPublicKey(transaction.getSender() != null ? Utils.publicKeyToByteString(transaction.getSender()) : ByteString.EMPTY)
                 .setAuctionId(transaction.getAuctionId() != null ? transaction.getAuctionId().toString() : "")
-                .setItemDescription(transaction.getItemDescription() != null ? transaction.getItemDescription() : "")
-                .setStartTime(transaction.getStartTime() != null ? transaction.getStartTime().toString() : "")
-                .setEndTime(transaction.getEndTime() != null ? transaction.getEndTime().toString() : "")
-                .setBidAmount(transaction.getBidAmount() != null ? transaction.getBidAmount().toString() : "")
+                .setAmount(transaction.getAmount() != null ? transaction.getAmount().toString() : "")
                 .setSignature((transaction.getSignature() != null ? ByteString.copyFrom(transaction.getSignature())  : ByteString.EMPTY));
 
 

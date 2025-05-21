@@ -638,5 +638,31 @@ public class RpcClient {
         }
     }
 
+    public void findNodeAndUpdateRoutingTable(BigInteger targetId) {
+        final int MAX_NEW_NODES = 5;
+        int addedCount = 0;
+
+        List<Node> closest = this.localNode.findClosestNodes(targetId, 3);
+
+        for (Node candidate : closest) {
+            if (addedCount >= MAX_NEW_NODES) break;
+
+            try {
+                List<Node> nodesReturned = findNode(candidate, targetId);
+
+                for (Node newNode : nodesReturned) {
+                    if (addedCount >= MAX_NEW_NODES) break;
+                    if (!localNode.getId().equals(newNode.getId())
+                            && !localNode.containsNode(newNode.getId())) {
+                        localNode.addNode(newNode);
+                        addedCount++;
+                    }
+                }
+
+            } catch (Exception e) {
+                System.err.println("Failed to contact node " + candidate.getId() + ": " + e.getMessage());
+            }
+        }
+    }
 
 }

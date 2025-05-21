@@ -242,6 +242,7 @@ public class Node {
 
 
 
+
     public int getK(){
         return this.K;
     }

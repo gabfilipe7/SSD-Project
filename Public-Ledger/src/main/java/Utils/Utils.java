@@ -17,6 +17,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.security.Security;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
@@ -191,4 +192,12 @@ public class Utils implements Comparator<Node> {
         }
         return hexString.toString();
     }
+
+    public static BigInteger generateRandomNodeId() {
+        SecureRandom random = new SecureRandom();
+        byte[] idBytes = new byte[20];
+        random.nextBytes(idBytes);
+        return new BigInteger(1, idBytes);
+    }
+
 }

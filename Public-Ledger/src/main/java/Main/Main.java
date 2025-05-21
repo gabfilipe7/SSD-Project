@@ -18,6 +18,9 @@ import java.math.BigInteger;
 import java.security.KeyPair;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static Utils.Utils.sha256;
 
@@ -28,6 +31,9 @@ public class Main {
     Blockchain blockchain = new Blockchain();
     RpcClient rpcClient;
     RpcServer rpcServer;
+
+    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
 
     //fazer bootstrap hardwire e configurar bash para inicilizar direto
     //proof of reputation
@@ -77,6 +83,7 @@ public class Main {
         this.rpcClient = new RpcClient(localNode, blockchain);
         this.rpcServer.rpcClient = this.rpcClient;
         this.blockchain.createGenesisBlock();
+        scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 5, TimeUnit.MINUTES);
 
 
 /*
@@ -319,5 +326,15 @@ public class Main {
             }
         });
     }
+
+    public void refreshRoutingTable() {
+        System.out.println("Refreshing routing table...");
+
+        for (int i = 0; i < 5; i++) {
+            BigInteger randomId = Utils.Utils.generateRandomNodeId();
+            rpcClient.findNodeAndUpdateRoutingTable(randomId);
+        }
+    }
+
 
 }

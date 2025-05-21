@@ -179,7 +179,7 @@ public class Main {
 
         String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
 
-        Set<String> values = RpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
+        Set<String> values = rpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
         String auctionJson = values.iterator().next();
 
         Gson gson = new Gson();
@@ -224,7 +224,7 @@ public class Main {
 
         String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
 
-        Set<String> values = RpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
+        Set<String> values = rpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
         String auctionJson = values.iterator().next();
 
         Gson gson = new Gson();
@@ -267,7 +267,7 @@ public class Main {
 
         for (Node bootstrap : bootstrapNodes) {
             System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            boolean connected = RpcClient.ping(bootstrap,localNode);
+            boolean connected = rpcClient.ping(bootstrap,localNode);
             if (connected) {
                 this.localNode.addNode(bootstrap);
                 this.rpcClient.findNode(bootstrap.getId());

@@ -50,13 +50,7 @@ public class Node {
             if (keys == null) {
                 keys = generateKeys();
                 this.keyPair = keys;
-                byte[] encodedPK = keys.getPublic().getEncoded();
-
-                MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
-                byte[] hashBytes = digest.digest(encodedPK);
-
-
-                this.nodeId = new BigInteger(1, hashBytes);
+                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().toString()),16);
                 try {
                     Authentication.saveKeyPair(keys);
                     System.out.println("Generated new keys and saved to file.");
@@ -66,13 +60,7 @@ public class Node {
             }
             else{
                 this.keyPair = keys;
-                byte[] encodedPK = keys.getPublic().getEncoded();
-
-                MessageDigest digest = MessageDigest.getInstance("SHA-256", "BC");
-                byte[] hashBytes = digest.digest(encodedPK);
-
-
-                this.nodeId = new BigInteger(1, hashBytes);
+                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().toString()),16);
             }
 
 

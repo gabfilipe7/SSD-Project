@@ -48,7 +48,7 @@ public class RpcClient {
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);
     }
 
-    public static boolean ping(Node peer, Node localNode) {
+    public boolean ping(Node peer, Node localNode) {
         ManagedChannel channel = null;
         try {
             channel = ManagedChannelBuilder
@@ -72,7 +72,24 @@ public class RpcClient {
 
             PingResponse response = stub.ping(request);
 
-            return response.getIsAlive();
+            if(response.getIsAlive()){
+
+                Reputation rep = localNode.reputationMap.get(peer.getId());
+                double newScore = rep.getScore() + 0.005;
+                rep.setScore(newScore);
+                rep.setLastUpdated(Instant.now());
+                localNode.reputationMap.put(peer.getId(),rep);
+
+                byte[] signature = rep.signReputation(localNode.getPrivateKey(),peer.getId());
+                CompletableFuture.runAsync(() -> {
+                    gossipReputation(rep, peer.getId(), signature, localNode);
+                });
+                return true;
+            }
+            else{
+                return false;
+            }
+
 
         } catch (Exception e) {
             System.err.println("Ping failed to " + peer.getId() + ": " + e.getMessage());
@@ -221,11 +238,11 @@ public class RpcClient {
         }
     }
 
-    public static Optional<Set<String>> findValue(String key, Node node, int ttl) {
+    public Optional<Set<String>> findValue(String key, Node node, int ttl) {
         return findValue(key, node, ttl, new HashSet<>());
     }
 
-    private static Optional<Set<String>> findValue(String key, Node node, int ttl, Set<String> visitedNodeIds) {
+    private Optional<Set<String>> findValue(String key, Node node, int ttl, Set<String> visitedNodeIds) {
         if (ttl <= 0) {
             return Optional.empty();
         }
@@ -251,6 +268,15 @@ public class RpcClient {
             FindValueResponse response = stub.findValue(request);
 
             if (response.getFound()) {
+                Reputation rep = this.localNode.reputationMap.get(node.getId());
+                double newScore = rep.getScore() + 0.01;
+                rep.setScore(newScore);
+                rep.setLastUpdated(Instant.now());
+                this.localNode.reputationMap.put(node.getId(),rep);
+                byte[] signature = rep.signReputation(this.localNode.getPrivateKey(),node.getId());
+                CompletableFuture.runAsync(() -> {
+                    gossipReputation(rep, node.getId(), signature, localNode);
+                });
                 return Optional.of(new HashSet<>(response.getValueList()));
             } else {
                 for (NodeInfo nodeInfo : response.getNodesList()) {
@@ -481,7 +507,7 @@ public class RpcClient {
         Set<String> auctionEntries = new HashSet<>();
         List<AuctionMapEntry> result = new ArrayList<>();
 
-        RpcClient.findValue(key, localNode, 10).ifPresent(auctionEntries::addAll);
+        findValue(key, localNode, 10).ifPresent(auctionEntries::addAll);
 
         for(String entry : new ArrayList<>(auctionEntries)){
             result.add(AuctionMapEntry.fromString(entry));
@@ -558,13 +584,14 @@ public class RpcClient {
         }
     }
 
-    public void gossipReputation(Reputation reputation, BigInteger targetNodeId, byte[] signature, Node localNode, BigInteger senderNodeId) {
+    public void gossipReputation(Reputation reputation, BigInteger targetNodeId, byte[] signature, Node localNode) {
         GossipReputationRequest request;
 
         try {
             request = GossipReputationRequest.newBuilder()
                     .setReputationMessageId(reputation.getReputationId().toString())
                     .setSenderId(localNode.getId().toString())
+                    .setSenderPublicKey(ByteString.copyFrom(localNode.getPublicKey().getEncoded()))
                     .setNodeId(targetNodeId.toString())
                     .setScore(reputation.getScore())
                     .setLastUpdated(reputation.getLastUpdated().toEpochMilli())

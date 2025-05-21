@@ -1,6 +1,7 @@
 package Blockchain;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.Base64;
@@ -52,18 +53,19 @@ public class Transaction {
     }
 
 
-    public boolean validateTransaction() {
+    public double validateTransaction() {
         try {
+
             if (this.getTransactionId() == null) {
-                return false;
+                return 0.05;
             }
 
             if (this.getTimestamp() == null || this.getTimestamp().isAfter(java.time.Instant.now())) {
-                return false;
+                return 0.1;
             }
 
             if (this.getType() == null) {
-                return false;
+                return 0.05;
             }
 
             Security.addProvider(new BouncyCastleProvider());
@@ -85,9 +87,17 @@ public class Transaction {
             verifier.initVerify(sender);
             verifier.update(message);
 
-            return verifier.verify(this.signature);
+            var secure = verifier.verify(this.signature);
+
+            if(!secure){
+                return 0.2;
+            }
+            else{
+                return 1;
+            }
+
         } catch (Exception e) {
-            return false;
+            return 0;
         }
     }
 

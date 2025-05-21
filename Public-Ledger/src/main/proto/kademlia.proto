@@ -111,6 +111,7 @@ message Block {
 message BlockMessage {
   Block blockData = 1;
   bytes signature = 2;
+  int64 senderId = 3;
 }
 
 message GetBlocksRequest {
@@ -135,10 +136,11 @@ message PaymentRequestResponse {
 message GossipReputationRequest {
   string reputationMessageId = 1;
   string senderId = 2;
-  string nodeId = 3;
-  double score = 4;
-  int64 lastUpdated = 5;
-  bytes signature = 6;
+  bytes senderPublicKey = 3;
+  string nodeId = 4;
+  double score = 5;
+  int64 lastUpdated = 6;
+  bytes signature = 7;
 }
 
 message GossipReputationResponse {

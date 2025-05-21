@@ -87,29 +87,29 @@ public class Blockchain {
         return false;
     }
 
-    public boolean verifyBlock(Block block) {
+    public double verifyBlock(Block block) {
 
         Block lastBlock = GetLastBlock();
         if (!block.getPreviousBlockHash().equals(lastBlock.getBlockHash())) {
-            return false;
+            return 0.05;
         }
 
         for (Transaction tr : block.getTransactions()) {
-            if (!tr.validateTransaction()) {
-                return false;
+            if (tr.validateTransaction() != 1) {
+                return tr.validateTransaction();
             }
         }
 
         String computedHash = block.CalculateBlockHash();
         if (!computedHash.equals(block.getBlockHash())) {
-            return false;
+            return 0.2;
         }
 
         if (!computedHash.startsWith("0".repeat(block.getDifficulty()))) {
-            return false;
+            return 0.1;
         }
 
-        return true;
+        return 1;
     }
 
     public List<Block> getBlocksFrom(long startIndex) {

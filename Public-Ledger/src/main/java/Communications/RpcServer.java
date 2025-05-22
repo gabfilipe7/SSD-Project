@@ -8,6 +8,7 @@ import Identity.Reputation;
 import Kademlia.Node;
 import Utils.Utils;
 import Utils.InstantAdapter;
+import Utils.PublicKeyAdapter;
 import Utils.StoreValue;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -45,6 +46,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     public RpcServer(Node localNode, Blockchain blockchain) {
@@ -115,7 +117,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             if (score == 1) {
 
                 BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().getEncoded()),16);
-                BigInteger nodeId3 = new BigInteger(String.valueOf(assembledTransaction.getSender()),16);
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
                 double newScore = rep.getScore() + 0.01;
                 rep.setScore(newScore);

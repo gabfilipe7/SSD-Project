@@ -25,6 +25,7 @@ public class Utils implements Comparator<Node> {
 
     static Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     public Utils(Node currentNode) {

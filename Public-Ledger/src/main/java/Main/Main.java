@@ -10,6 +10,7 @@ import Identity.Reputation;
 import Kademlia.Node;
 import Identity.Authentication;
 import Utils.InstantAdapter;
+import Utils.PublicKeyAdapter;
 import Utils.StoreValue;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -19,6 +20,7 @@ import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.KeyPair;
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -40,6 +42,7 @@ public class Main {
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     //fault mechanism

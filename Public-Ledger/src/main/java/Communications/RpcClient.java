@@ -8,6 +8,7 @@ import Blockchain.Transaction;
 import Identity.Reputation;
 import Utils.Utils;
 import Utils.InstantAdapter;
+import Utils.PublicKeyAdapter;
 import Utils.StoreValue;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -18,6 +19,7 @@ import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
 
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -39,6 +41,7 @@ public class RpcClient {
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     public RpcClient(Node localNode,Blockchain blockchain) {

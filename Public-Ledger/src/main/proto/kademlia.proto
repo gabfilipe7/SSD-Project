@@ -79,20 +79,9 @@ message FindValueResponse {
 
 
 message TransactionMessage {
-  Transaction transactionData = 1;
+  string transactionData = 1;
   bytes signature = 2;
   string senderNodeId  = 3;
-}
-
-message Transaction {
-  string transactionId = 1;
-  uint32 type = 2;
-  string timestamp = 3;
-  bytes senderPublicKey = 4;
-  bytes targetPublicKey = 5;
-  string auctionId = 6;
-  string amount = 7;
-  bytes signature = 8;
 }
 
 message GossipResponse {
@@ -103,7 +92,7 @@ message Block {
   int64 blockId = 1;
   string previousHash = 2;
   int64 timestamp = 3;
-  repeated Transaction transactions = 4;
+  repeated string transactions = 4;
   int64 nonce = 5;
   string hash = 6;
 }

@@ -7,8 +7,10 @@ import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Identity.Reputation;
 import Utils.Utils;
+import Utils.InstantAdapter;
 import Utils.StoreValue;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.protobuf.ByteString;
 import com.kademlia.grpc.*;
 import io.grpc.ManagedChannel;
@@ -35,6 +37,9 @@ public class RpcClient {
     private final Blockchain blockchain;
 
 
+    Gson gson = new GsonBuilder()
+            .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .create();
 
     public RpcClient(Node localNode,Blockchain blockchain) {
         this.localNode = localNode;
@@ -75,15 +80,24 @@ public class RpcClient {
             if(response.getIsAlive()){
 
                 Reputation rep = localNode.reputationMap.get(peer.getId());
-                double newScore = rep.getScore() + 0.005;
-                rep.setScore(newScore);
-                rep.setLastUpdated(Instant.now());
-                localNode.reputationMap.put(peer.getId(),rep);
 
-                byte[] signature = rep.signReputation(localNode.getPrivateKey(),peer.getId());
-                CompletableFuture.runAsync(() -> {
-                    gossipReputation(rep, peer.getId(), signature, localNode);
-                });
+                if(rep != null){
+                    double newScore = rep.getScore() + 0.005;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    localNode.reputationMap.put(peer.getId(),rep);
+
+                    byte[] signature = rep.signReputation(localNode.getPrivateKey(),peer.getId());
+                    CompletableFuture.runAsync(() -> {
+                        gossipReputation(rep, peer.getId(), signature, localNode);
+                    });
+                }
+                else{
+                    Reputation reputation = new Reputation(0,Instant.now());
+                    localNode.reputationMap.put(peer.getId(),reputation);
+                }
+
+
                 return true;
             }
             else{
@@ -92,7 +106,7 @@ public class RpcClient {
 
 
         } catch (Exception e) {
-            System.err.println("Ping failed to " + peer.getId() + ": " + e.getMessage());
+        // System.err.println("Ping failed to " + peer.getId() + ": " + e.getMessage());
             return false;
         } finally {
             if (channel != null) {
@@ -196,7 +210,7 @@ public class RpcClient {
                 .collect(Collectors.toList());
 
         for(Node node : nodes){
-            if(!localNode.containsNode(node.getId())){
+            if(!localNode.containsNode(node.getId()) && !node.getId().equals(localNode.getId())){
                 localNode.addNode(node);
             }
         }
@@ -269,14 +283,18 @@ public class RpcClient {
 
             if (response.getFound()) {
                 Reputation rep = this.localNode.reputationMap.get(node.getId());
-                double newScore = rep.getScore() + 0.01;
-                rep.setScore(newScore);
-                rep.setLastUpdated(Instant.now());
-                this.localNode.reputationMap.put(node.getId(),rep);
-                byte[] signature = rep.signReputation(this.localNode.getPrivateKey(),node.getId());
-                CompletableFuture.runAsync(() -> {
-                    gossipReputation(rep, node.getId(), signature, localNode);
-                });
+                if(rep != null){
+                    double newScore = rep.getScore() + 0.01;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    this.localNode.reputationMap.put(node.getId(),rep);
+                    byte[] signature = rep.signReputation(this.localNode.getPrivateKey(),node.getId());
+                    CompletableFuture.runAsync(() -> {
+                        gossipReputation(rep, node.getId(), signature, localNode);
+                    });
+                }else{
+                    this.localNode.reputationMap.put(node.getId(), new Reputation(0,Instant.now()));
+                }
                 return Optional.of(new HashSet<>(response.getValueList()));
             } else {
                 for (NodeInfo nodeInfo : response.getNodesList()) {
@@ -306,21 +324,26 @@ public class RpcClient {
 
 
 
-    public static BlockMessage gossipBlock(Block block, Node localNode) {
+    public BlockMessage gossipBlock(Block block, Node localNode) {
         BlockMessage blockMessage;
 
         try {
+            List<String> transactions = new ArrayList<>();
+
+            for(Transaction tr: block.getTransactions()){
+                transactions.add(gson.toJson(tr));
+            }
+
             com.kademlia.grpc.Block protoBlock = com.kademlia.grpc.Block.newBuilder()
                     .setBlockId(block.getIndex())
                     .setPreviousHash(block.getPreviousBlockHash())
                     .setTimestamp(block.getTimestamp())
                     .setNonce(block.getNonce())
                     .setHash(block.getBlockHash())
-                    .addAllTransactions(
-                            block.getTransactions().stream().map(Utils::convertTransactionToResponse
-                            ).collect(Collectors.toList())
-                    )
+                    .addAllTransactions(transactions)
                     .build();
+
+
 
             blockMessage = BlockMessage.newBuilder()
                     .setBlockData(protoBlock)
@@ -367,23 +390,15 @@ public class RpcClient {
         return blockMessage;
     }
 
-    public static void gossipTransaction(Transaction transaction, byte[] signature, Node localNode, BigInteger senderNodeId) {
+    public void gossipTransaction(Transaction transaction, byte[] signature, Node localNode, BigInteger senderNodeId) {
         TransactionMessage transactionMessage;
 
         try {
-            com.kademlia.grpc.Transaction protoTx = com.kademlia.grpc.Transaction.newBuilder()
-                    .setTransactionId(transaction.getTransactionId() != null ? transaction.getTransactionId().toString() : "")
-                    .setType(transaction.getType() != null ? transaction.getType().ordinal() : 0)
-                    .setTimestamp(transaction.getTimestamp() != null ? transaction.getTimestamp().toString() : "")
-                    .setSenderPublicKey(transaction.getSender() != null ? ByteString.copyFrom(transaction.getSender().getEncoded()) : ByteString.EMPTY)
-                    .setAuctionId(transaction.getAuctionId() != null ? transaction.getAuctionId().toString() : "")
-                    .setAmount(transaction.getAmount() != null ? transaction.getAmount().toString() : "")
-                    .build();
 
-
+            String transactionJson = gson.toJson(transaction,Transaction.class);
 
             transactionMessage = TransactionMessage.newBuilder()
-                    .setTransactionData(protoTx)
+                    .setTransactionData(transactionJson)
                     .setSignature(ByteString.copyFrom(signature))
                     .setSenderNodeId(localNode.getId().toString())
                     .build();
@@ -526,7 +541,7 @@ public class RpcClient {
     public void PublishAuctionBid(UUID auctionId, String key, String payload) {
         String auctionKey = sha256("auction-subs:" + auctionId);
         Set<String> subscribers = localNode.getValues(auctionKey);
-        Gson gson = new Gson();
+
         StoreValue value = new StoreValue(StoreValue.Type.BID,payload);
         String payloadJson = gson.toJson(value);
         for (String nodeId : subscribers) {
@@ -543,7 +558,7 @@ public class RpcClient {
     public void PublishAuctionClose(String key, String payload) {
         String auctionKey = sha256("auction-subs:" + payload);
         Set<String> subscribers = localNode.getValues(auctionKey);
-        Gson gson = new Gson();
+
         StoreValue value = new StoreValue(StoreValue.Type.CLOSE,payload);
         String payloadJson = gson.toJson(value);
         for (String nodeId : subscribers) {

@@ -20,6 +20,7 @@ public class Transaction {
     private UUID transactionId;
     private Instant timestamp;
     private PublicKey sender;
+    private PublicKey target;
     private TransactionType type;
     private byte[] signature;
     private Double amount;
@@ -141,6 +142,7 @@ public class Transaction {
     public UUID getTransactionId() { return transactionId; }
     public Instant getTimestamp() { return timestamp; }
     public PublicKey getSender() { return sender; }
+    public PublicKey getTarget() { return target; }
     public TransactionType getType() { return type; }
     public UUID getAuctionId() { return auctionId; }
     public String getItemDescription() { return itemDescription; }

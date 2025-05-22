@@ -6,10 +6,13 @@ import Auction.Bid;
 import Blockchain.Blockchain;
 import Communications.RpcClient;
 import Communications.RpcServer;
+import Identity.Reputation;
 import Kademlia.Node;
 import Identity.Authentication;
+import Utils.InstantAdapter;
 import Utils.StoreValue;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
@@ -35,9 +38,10 @@ public class Main {
     ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
 
-    //fazer bootstrap hardwire e configurar bash para inicilizar direto
-    //proof of reputation
-    //segurança resistance attacks
+    Gson gson = new GsonBuilder()
+            .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .create();
+
     //fault mechanism
     //merkle tree
 
@@ -67,6 +71,7 @@ public class Main {
 
 
         if (Authentication.keysExist()) {
+            System.out.println("POTATO");
             try {
                 keys = Authentication.loadKeyPair(algorithm);
                 System.out.println("Loaded keys from file.");
@@ -95,6 +100,9 @@ public class Main {
             this.connectToBootstrapNodes();
         }
 
+
+        System.out.println("My id is " + localNode.getId().toString());
+
         while (true) {
             System.out.println("Welcome to the auction manager!");
             System.out.println("----------------------");
@@ -103,8 +111,11 @@ public class Main {
             System.out.println("(3) Place Bid");
             System.out.println("(4) Close Auction");
             System.out.println("(5) Show Mempool");
-            System.out.println("(6) Subscribe to auction");
-            System.out.println("(7) Exit");
+            System.out.println("(6) Print Blockchain");
+            System.out.println("(7) Subscribe to auction");
+            System.out.println("(8) Check your balance");
+            System.out.println("(9) Check the reputation table");
+            System.out.println("(10) Exit");
             System.out.println("----------------------");
             System.out.print("Select an option:");
 
@@ -129,9 +140,18 @@ public class Main {
                     this.blockchain.printMempoolValues();
                     break;
                 case 6:
-                    subscribeAuction();
+                    blockchain.print();
                     break;
                 case 7:
+                    subscribeAuction();
+                    break;
+                case 8:
+                    showBalance();
+                    break;
+                case 9:
+                    showPeerReputations();
+                    break;
+                case 10:
                     System.out.println("Exiting...");
                     return;
                 default:
@@ -148,11 +168,10 @@ public class Main {
         System.out.println("----------------------");
         Auction newAuction = this.localNode.createAuction(productName, Instant.now());
         String key = sha256("auction-info:" + newAuction.getAuctionId());
-        Gson gson = new Gson();
         String newAuctionJson = gson.toJson(newAuction);
         localNode.addKey(key, newAuctionJson);
         System.out.printf("The auction for the product %s was created successfully.%n", productName);
-        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.AUCTION,newAuctionJson);
                 RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
@@ -160,24 +179,31 @@ public class Main {
         });
     }
 
-    private void listAuctions(){
-        List<AuctionMapEntry> auctions = rpcClient.getAuctionListFromNetwork();
+    private void listAuctions() {
+        List<Auction> auctions = new ArrayList<>(localNode.getAuctionsMap().values());
+
         if (auctions.isEmpty()) {
             System.out.println("There are no auctions to show.");
             return;
         }
-        else{
-            System.out.println("This is the list of currently listed auctions:");
-            System.out.println("----------------------------------------------");
-            int count  = 0;
-            for(AuctionMapEntry auction : auctions){
-                System.out.printf("(%s) ---- %s ----- %s%n", count,auction.getItemName() ,auction.getOwnerNode());
-                count++;
-            }
-            System.out.print("Press any key to return to menu");
-            String response = this.scanner.nextLine();
+
+        System.out.println("This is the list of currently listed auctions:");
+        System.out.println("---------------------------------------------------------------");
+
+        System.out.printf("%-5s | %-30s | %-36s%n", "No.", "Item", "Auction ID");
+        System.out.println("---------------------------------------------------------------");
+
+        int count = 0;
+        for (Auction auction : auctions) {
+            System.out.printf("%-5d | %-30s | %-36s%n", count, auction.getItem(), auction.getAuctionId());
+            count++;
         }
+
+        System.out.println("---------------------------------------------------------------");
+        System.out.print("Press Enter to return to the menu...");
+        scanner.nextLine();
     }
+
 
     private void closeAuction() {
         System.out.print("Insert the Id of the auction you want to close: ");
@@ -186,24 +212,26 @@ public class Main {
 
         String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
 
-        Set<String> values = rpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
-        String auctionJson = values.iterator().next();
+        Set<String> auctionJson = localNode.getValues(key);
 
-        Gson gson = new Gson();
-        Auction auction = gson.fromJson(auctionJson, Auction.class);
+        Auction auction = gson.fromJson(auctionJson.iterator().next(),Auction.class);
+
 
         if (auction == null) {
             System.out.println("Auction not found.");
             return;
         }
-
+        if (!auction.getOwner().equals(localNode.getId())) {
+            System.out.println("You cannot close an auction that does not belong to you.");
+            return;
+        }
         if (auction.isClosed()) {
             System.out.println("Auction is already closed.");
             return;
         }
 
         auction.closeAuction();
-        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.CLOSE,auctionIdInput);
                 RpcClient.store(node.getIpAddress(),node.getPort(),"auction-close"+ UUID.fromString(auctionIdInput),gson.toJson(value));
@@ -232,9 +260,13 @@ public class Main {
         String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
 
         Set<String> values = rpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
+
+        if(values.isEmpty()){
+            return;
+        }
+
         String auctionJson = values.iterator().next();
 
-        Gson gson = new Gson();
         Auction auction = gson.fromJson(auctionJson, Auction.class);
 
 
@@ -256,7 +288,7 @@ public class Main {
 
         String storeKey = sha256("bid:" + auction.getAuctionId());
 
-        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.BID,bidJson);
                 RpcClient.store(node.getIpAddress(),node.getPort(),storeKey,gson.toJson(value));
@@ -268,13 +300,15 @@ public class Main {
 
     private void connectToBootstrapNodes() {
         List<Node> bootstrapNodes = List.of(
-                new Node( "127.0.0.1", 5000,20,true,null),
-                new Node( "127.0.0.1", 5001,20,true,null)
+                new Node( new BigInteger("69784748387363365747082763450260950682476036662102637451155264012668469145477"),"127.0.0.1", 5000,20,true),
+                new Node( new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799"),"127.0.0.1", 5001,20,true)
         );
 
         for (Node bootstrap : bootstrapNodes) {
             System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
             boolean connected = rpcClient.ping(bootstrap,localNode);
+            Reputation reputation = new Reputation(0.7,Instant.now());
+            localNode.reputationMap.put(bootstrap.getId(),reputation);
             if (connected) {
                 this.localNode.addNode(bootstrap);
                 this.rpcClient.findNode(bootstrap.getId());
@@ -318,8 +352,7 @@ public class Main {
         System.out.println("Insert the Id of the auction you wish to subscribe: ");
         String auctionIdInput = this.scanner.nextLine();
         String key = sha256("auction-subs:" + auctionIdInput);
-        Gson gson = new Gson();
-        rpcClient.findNode(new BigInteger(key)).thenAccept(nodes -> {
+        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.SUBSCRIPTION ,localNode.getId().toString());
                 RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
@@ -335,6 +368,36 @@ public class Main {
             rpcClient.findNodeAndUpdateRoutingTable(randomId);
         }
     }
+
+    public void showBalance() {
+        System.out.println();
+        System.out.println("Your current balance is: " + localNode.getBalance() + " tokens");
+    }
+    public void showPeerReputations() {
+
+        System.out.println();
+        if (localNode.reputationMap.isEmpty()) {
+            System.out.println("No peer reputations available.");
+            return;
+        }
+
+        System.out.println("Peer Reputations:");
+        System.out.println("----------------------------------------------------------------------------------------------");
+        System.out.printf("%-40s                                      | %-10s%n", "Peer ID", "Reputation");
+        System.out.println("---------------------------------------------------------------------------------------------");
+
+        for (Map.Entry<BigInteger, Reputation> entry : localNode.reputationMap.entrySet()) {
+            BigInteger peerId = entry.getKey();
+            Reputation reputation = entry.getValue();
+
+            System.out.printf("%-40s | %-10s%n", peerId, reputation.getScore());
+        }
+
+        System.out.println("---------------------------------------------------------------------------------------------");
+        System.out.print("Press Enter to return to menu...");
+        scanner.nextLine();
+    }
+
 
 
 }

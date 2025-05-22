@@ -4,9 +4,7 @@ import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Blockchain.Block;
 import Kademlia.Node;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonPrimitive;
+import com.google.gson.*;
 import com.google.protobuf.ByteString;
 import com.kademlia.grpc.BlockMessage;
 import com.kademlia.grpc.TransactionMessage;
@@ -15,10 +13,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.Security;
+import java.security.*;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.*;
@@ -27,6 +22,10 @@ import java.util.stream.Collectors;
 public class Utils implements Comparator<Node> {
 
     private Node currentNode;
+
+    static Gson gson = new GsonBuilder()
+            .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .create();
 
     public Utils(Node currentNode) {
         this.currentNode = currentNode;
@@ -57,6 +56,7 @@ public class Utils implements Comparator<Node> {
             throw new RuntimeException(e);
         }
     }
+
     public static ByteString publicKeyToByteString(PublicKey publicKey) {
         try {
             byte[] keyBytes = publicKey.getEncoded();
@@ -72,8 +72,8 @@ public class Utils implements Comparator<Node> {
 
         List<Transaction> transactions = new ArrayList<>();
 
-        for (com.kademlia.grpc.Transaction tr : block.getTransactionsList()){
-            transactions.add(convertResponseToTransaction(tr));
+        for(String tr: receivedBlock.getBlockData().getTransactionsList()){
+            transactions.add(gson.fromJson(tr,Transaction.class));
         }
 
         return new Block(block.getBlockId(),
@@ -93,55 +93,16 @@ public class Utils implements Comparator<Node> {
         builder.setTimestamp(block.getTimestamp());
         builder.setNonce(block.getNonce());
 
-        for (Transaction tx : block.getTransactions()) {
-            builder.addTransactions(convertTransactionToResponse(tx));
+        List<String> transactions = new ArrayList<>();
+
+        for(Transaction tr: block.getTransactions()){
+            transactions.add(gson.toJson(tr));
         }
+
+        builder.addAllTransactions(transactions);
 
         return builder.build();
     }
-
-
-    public static Transaction convertResponseToTransaction(com.kademlia.grpc.Transaction transaction) {
-        Transaction tx = new Transaction();
-
-        if (!transaction.getTransactionId().isEmpty()) {
-            tx.setTransactionId(UUID.fromString(transaction.getTransactionId()));
-        }
-        tx.setType(Transaction.TransactionType.values()[transaction.getType()]);
-        if (!transaction.getTimestamp().isEmpty()) {
-            tx.setTimestamp(Instant.parse(transaction.getTimestamp()));
-        }
-        if (!transaction.getSenderPublicKey().isEmpty()) {
-            tx.setSender(Utils.byteStringToPublicKey(transaction.getSenderPublicKey()));
-        }
-        if (!transaction.getAuctionId().isEmpty()) {
-            tx.setAuctionId(UUID.fromString(transaction.getAuctionId()));
-        }
-        if (!transaction.getAmount().isEmpty()) {
-            tx.setAmount(Double.parseDouble(transaction.getAmount()));
-        }
-        if (!transaction.getSignature().isEmpty()) {
-            tx.setSignature(transaction.getSignature().toByteArray());
-        }
-        return tx;
-    }
-
-
-    public static com.kademlia.grpc.Transaction convertTransactionToResponse(Transaction transaction) {
-        com.kademlia.grpc.Transaction.Builder protoTxBuilder = com.kademlia.grpc.Transaction.newBuilder();
-
-        protoTxBuilder.setTransactionId(transaction.getTransactionId() != null ? transaction.getTransactionId().toString() : "")
-                .setType(transaction.getType() != null ? transaction.getType().ordinal() : 0)
-                .setTimestamp(transaction.getTimestamp() != null ? transaction.getTimestamp().toString() : "")
-                .setSenderPublicKey(transaction.getSender() != null ? Utils.publicKeyToByteString(transaction.getSender()) : ByteString.EMPTY)
-                .setAuctionId(transaction.getAuctionId() != null ? transaction.getAuctionId().toString() : "")
-                .setAmount(transaction.getAmount() != null ? transaction.getAmount().toString() : "")
-                .setSignature((transaction.getSignature() != null ? ByteString.copyFrom(transaction.getSignature())  : ByteString.EMPTY));
-
-
-        return protoTxBuilder.build();
-    }
-
 
     public static String calculateChainHash(Blockchain blockchain) {
 
@@ -192,6 +153,23 @@ public class Utils implements Comparator<Node> {
         }
         return hexString.toString();
     }
+
+    public static String sha256(byte[] input) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public static BigInteger generateRandomNodeId() {
         SecureRandom random = new SecureRandom();

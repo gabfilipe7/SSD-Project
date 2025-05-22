@@ -46,11 +46,22 @@ public class Node {
         }
         this.isBootstrap = isBootstrap;
 
+        if(port == 5000){
+            this.keyPair = generateKeys();
+            this.nodeId = new BigInteger("69784748387363365747082763450260950682476036662102637451155264012668469145477");
+            return;
+        }
+        if(port == 5001){
+            this.keyPair = generateKeys();
+            this.nodeId = new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799");
+            return;
+        }
+
         try{
             if (keys == null) {
                 keys = generateKeys();
                 this.keyPair = keys;
-                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().toString()),16);
+                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
                 try {
                     Authentication.saveKeyPair(keys);
                     System.out.println("Generated new keys and saved to file.");
@@ -60,7 +71,7 @@ public class Node {
             }
             else{
                 this.keyPair = keys;
-                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().toString()),16);
+                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
             }
 
 
@@ -68,6 +79,18 @@ public class Node {
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public Node(BigInteger nodeId, String ipAddress, int port, int k, boolean isBootstrap) {
+        this.ipAddress = ipAddress;
+        this.port = port;
+        this.routingTable = new ArrayList<>(256);
+        for (int i = 0; i < 256; i++) {
+            this.routingTable.add(new KBucket(k));
+        }
+        this.isBootstrap = isBootstrap;
+        this.keyPair = generateKeys();
+        this.nodeId = nodeId;
     }
 
     public Node(BigInteger nodeId, String ipAddress, int port){
@@ -179,7 +202,7 @@ public class Node {
     private static KeyPair generateKeys() {
         try {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC");
-            keyPairGenerator.initialize(2048); // 2048 bits is secure and common
+            keyPairGenerator.initialize(2048);
             KeyPair keys = keyPairGenerator.generateKeyPair();
             return keys;
         } catch (Exception e) {
@@ -201,6 +224,10 @@ public class Node {
         map.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(value);
     }
 
+    public void addKeyWithReplace(String key, String value) {
+        map.put(key, new HashSet<>(Set.of(value)));
+    }
+
     public Set<String> getValues(String key) {
         return map.getOrDefault(key, new HashSet<>());
     }
@@ -217,6 +244,11 @@ public class Node {
         auctions.put(newAuction.getAuctionId(), newAuction);
         return newAuction;
     }
+
+    public Map<UUID, Auction>  getAuctionsMap() {
+        return auctions;
+    }
+
 
     public boolean closeAuction(UUID auctionId) {
         Auction auction = auctions.get(auctionId);
@@ -240,6 +272,20 @@ public class Node {
         return auctions.get(auctionId);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Node node = (Node) o;
+
+        return  Objects.equals(nodeId, node.nodeId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId);
+    }
 
 
 
@@ -277,6 +323,15 @@ public class Node {
 
     public void addAuctionToAuctions(Auction a) {
         this.auctions.put(a.getAuctionId(),a);
+    }
+
+
+    public boolean removeAuction(UUID auctionId) {
+        if (auctions.containsKey(auctionId)) {
+            auctions.remove(auctionId);
+            return true;
+        }
+        return false;
     }
 
 

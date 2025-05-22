@@ -15,6 +15,9 @@ public class KBucket {
 
     public boolean addNode(Node node) {
         int size = this.Nodes.size();
+        if(getNodes().contains(node)){
+            return false;
+        }
         if (size< this.K) {
             this.Nodes.add(node);
             return true;

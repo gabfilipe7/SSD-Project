@@ -166,6 +166,32 @@ public class Blockchain {
       }
     }
 
+    public void print() {
+        StringBuilder sb = new StringBuilder();
+        String blockSeparator = "==========================================";
+        String arrow = "                 ↓";
+
+        for (int i = 0; i < chain.size(); i++) {
+            Block block = chain.get(i);
+            sb.append(blockSeparator).append("\n");
+            sb.append("Block #").append(block.getIndex()).append("\n");
+            sb.append(blockSeparator).append("\n");
+            sb.append("Hash: ").append(block.getBlockHash()).append("\n");
+            sb.append("Prev: ").append(block.getPreviousBlockHash()).append("\n");
+            sb.append("Time: ").append(new Date(block.getTimestamp())).append("\n");
+            sb.append("Nonce: ").append(block.getNonce()).append("\n");
+            sb.append("Transactions:").append("\n");
+            for (Transaction tx : block.getTransactions()) {
+                sb.append("  - ").append(tx.toString()).append("\n");
+            }
+            if (i < chain.size() - 1) {
+                sb.append(blockSeparator).append("\n");
+                sb.append(arrow).append("\n");
+            }
+        }
+        sb.append(blockSeparator).append("\n");
+        System.out.println(sb.toString());
+    }
 
 
     public void clearMempool() {

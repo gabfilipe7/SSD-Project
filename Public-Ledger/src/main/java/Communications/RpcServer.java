@@ -7,8 +7,10 @@ import Blockchain.Transaction;
 import Identity.Reputation;
 import Kademlia.Node;
 import Utils.Utils;
+import Utils.InstantAdapter;
 import Utils.StoreValue;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.kademlia.grpc.*;
 import Blockchain.Block;
 import io.grpc.Status;
@@ -25,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.math.BigInteger;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static Utils.Utils.sha256;
@@ -40,6 +43,9 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     private Thread miningThread;
     private Set<UUID> reputationIds = new HashSet<>();
 
+    Gson gson = new GsonBuilder()
+            .registerTypeAdapter(Instant.class, new InstantAdapter())
+            .create();
 
     public RpcServer(Node localNode, Blockchain blockchain) {
         this.localNode = localNode;
@@ -67,6 +73,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         List<Node> closest = localNode.findClosestNodes(targetId, localNode.getK());
 
         List<NodeInfo> nodeInfos = closest.stream()
+                .filter(node -> !node.getId().equals(localNode.getId()))
                 .map(node -> NodeInfo.newBuilder()
                         .setId(node.getId().toString())
                         .setIp(node.getIpAddress())
@@ -87,28 +94,28 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void gossipTransaction(TransactionMessage request, StreamObserver<GossipResponse> responseObserver) {
         try {
 
-            com.kademlia.grpc.Transaction tx = request.getTransactionData();
+            Transaction assembledTransaction = gson.fromJson(request.getTransactionData(),Transaction.class);
 
-            if (this.blockchain.containsTransaction(UUID.fromString(tx.getTransactionId()))) {
+            if (this.blockchain.containsTransaction(assembledTransaction.getTransactionId())){
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
                 return;
             }
 
-            Reputation senderReputation = localNode.reputationMap.get(new BigInteger(Utils.sha256(request.getSenderNodeId())));
+            Reputation senderReputation = localNode.reputationMap.get(new BigInteger(request.getSenderNodeId()));
             if (senderReputation == null || senderReputation.getScore() < 0.2) {
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
                 return;
             }
 
-            Transaction assembledTransaction = Utils.convertResponseToTransaction(tx);
 
             assembledTransaction.setSignature(request.getSignature().toByteArray());
             double score = assembledTransaction.validateTransaction();
             if (score == 1) {
 
-                BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
+                BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().getEncoded()),16);
+                BigInteger nodeId3 = new BigInteger(String.valueOf(assembledTransaction.getSender()),16);
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
                 double newScore = rep.getScore() + 0.01;
                 rep.setScore(newScore);
@@ -120,11 +127,11 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     rpcClient.gossipReputation(rep, nodeId, signature, localNode);
                 });
 
-                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && tx.getTargetPublicKey().equals(localNode.getPublicKey())){
+                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getTarget().equals(localNode.getPublicKey())){
                     this.localNode.updateBalance(assembledTransaction.getAmount());
                 }
 
-                RpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
+                rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
                 manageMempool(assembledTransaction);
             } else{
                 BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
@@ -162,9 +169,8 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             List<Transaction> transactions = new ArrayList<>();
 
-            for (com.kademlia.grpc.Transaction tr : receivedBlock.getTransactionsList()){
-                Transaction transaction = Utils.convertResponseToTransaction(tr);
-                transactions.add(transaction);
+            for(String tr: request.getBlockData().getTransactionsList()){
+                transactions.add(gson.fromJson(tr,Transaction.class));
             }
 
             if (receivedBlock.getBlockId() <= blockchain.GetLastBlock().getIndex()) {
@@ -202,7 +208,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     });
 
                     blockchain.AddNewBlock(block);
-                    RpcClient.gossipBlock(block,this.localNode);
+                    rpcClient.gossipBlock(block,this.localNode);
                 }
                 else if (!blockchain.Contains(receivedBlock.getBlockId() - 1)) {
                     stopMining();
@@ -247,20 +253,24 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         try {
             String key = request.getKey();
 
-            Gson gson = new Gson();
             StoreValue value = gson.fromJson(request.getValue(), StoreValue.class);
 
             switch (value.getType()) {
                 case AUCTION:
+                    System.out.println("Recieved new auction information.");
                     handleAuction(key, value.getPayload());
                     break;
+
                 case SUBSCRIPTION:
+                    System.out.println("Recieved new auction subscription.");
                     handleSubscription(key, value.getPayload());
                     break;
                 case BID:
+                    System.out.println("Recieved new bid.");
                     handleBid(key, value.getPayload());
                     break;
                 case CLOSE:
+                    System.out.println("Recieved auction closed.");
                     handleClose(key, value.getPayload());
                     break;
             }
@@ -347,10 +357,19 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         String key = sha256("bid:" + auctionId);
         Set<String> values = this.localNode.getValues(key);
 
-        int maxBidValue = values.stream()
-                .mapToInt(Integer::parseInt)
+        double maxBidValue = values.stream()
+                .map(json -> {
+                    try {
+                        return gson.fromJson(json, Bid.class);
+                    } catch (Exception e) {
+                        System.err.println("Failed to parse bid JSON: " + json);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .mapToDouble(Bid::getAmount)
                 .max()
-                .orElse(0);
+                .orElse(0.0);
 
 
         if(maxBidValue != amount){
@@ -366,7 +385,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             transaction.signTransaction(this.localNode.getPrivateKey());
 
-            RpcClient.gossipTransaction(transaction, transaction.getSignature(), localNode, localNode.getId());
+            rpcClient.gossipTransaction(transaction, transaction.getSignature(), localNode, localNode.getId());
 
             manageMempool(transaction);
 
@@ -509,7 +528,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             blockToMine.mine(() -> isMining);
             if (isMining && blockchain.verifyBlock(blockToMine) == 1) {
                 blockchain.AddNewBlock(blockToMine);
-                RpcClient.gossipBlock(blockToMine, localNode);
+                rpcClient.gossipBlock(blockToMine, localNode);
                 isMining = false;
                 currentBlockMining = null;
             }
@@ -532,7 +551,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void handleBid(String key, String payload){
         localNode.addKey(key, payload);
 
-        Gson gson = new Gson();
         Bid bid = gson.fromJson(payload, Bid.class);
         String auctionKey = sha256("auction-info:" + bid.getAuctionId());
         String auctionJson = localNode.getValues(auctionKey).iterator().next();
@@ -543,7 +561,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         String auctionJsonUpdated = gson.toJson(auction);
 
-        localNode.addKey(auctionKey,auctionJsonUpdated );
+        localNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
         rpcClient.PublishAuctionBid(bid.getAuctionId(), key, payload);
     }
@@ -551,7 +569,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void handleClose(String key, String payload) {
         localNode.addKey(key, payload);
 
-        Gson gson = new Gson();
         String auctionKey = sha256("auction-info:" + payload);
         String auctionJson = localNode.getValues(auctionKey).iterator().next();
 
@@ -561,12 +578,18 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         String auctionJsonUpdated = gson.toJson(auction);
 
+        localNode.removeAuction(auction.getAuctionId());
+
         localNode.addKey(auctionKey,auctionJsonUpdated);
 
         rpcClient.PublishAuctionClose(key, payload);
     }
     public void handleAuction(String key, String payload){
         localNode.addKey(key,payload);
+
+        Auction auction = gson.fromJson(payload,Auction.class);
+
+        localNode.addAuctionToAuctions(auction);
     }
     public void handleSubscription(String key, String payload){
         localNode.addKey(key,payload);

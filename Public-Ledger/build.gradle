@@ -53,7 +53,7 @@ sourceSets {
 shadowJar {
     manifest {
         attributes(
-                'Main-Class': 'org.example.Main'
+                'Main-Class':  'Main.Main'
         )
     }
     mergeServiceFiles()

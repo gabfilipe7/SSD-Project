@@ -20,7 +20,7 @@ public class Transaction {
     private UUID transactionId;
     private Instant timestamp;
     private PublicKey sender;
-    private PublicKey target;
+    private BigInteger auctionOwnerId;
     private TransactionType type;
     private byte[] signature;
     private Double amount;
@@ -32,10 +32,11 @@ public class Transaction {
 
     public Transaction() {}
 
-    public Transaction(TransactionType type, PublicKey sender, Double amount) {
+    public Transaction(TransactionType type, PublicKey sender,BigInteger auctionOwnerId, Double amount) {
         this.transactionId = UUID.randomUUID();
         this.timestamp = Instant.now();
         this.sender = sender;
+        this.auctionOwnerId = auctionOwnerId;
         this.type = type;
         this.amount = amount;
     }
@@ -142,7 +143,7 @@ public class Transaction {
     public UUID getTransactionId() { return transactionId; }
     public Instant getTimestamp() { return timestamp; }
     public PublicKey getSender() { return sender; }
-    public PublicKey getTarget() { return target; }
+    public BigInteger getAuctionOwnerId() { return auctionOwnerId; }
     public TransactionType getType() { return type; }
     public UUID getAuctionId() { return auctionId; }
     public String getItemDescription() { return itemDescription; }

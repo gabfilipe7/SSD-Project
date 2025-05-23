@@ -46,17 +46,6 @@ public class Node {
         }
         this.isBootstrap = isBootstrap;
 
-        if(port == 5000){
-            this.keyPair = generateKeys();
-            this.nodeId = new BigInteger("69784748387363365747082763450260950682476036662102637451155264012668469145477");
-            return;
-        }
-        if(port == 5001){
-            this.keyPair = generateKeys();
-            this.nodeId = new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799");
-            return;
-        }
-
         try{
             if (keys == null) {
                 keys = generateKeys();
@@ -74,7 +63,13 @@ public class Node {
                 this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
             }
 
-
+           if(port == 5000){
+                this.nodeId = new BigInteger("114463119885993250460859498894823303590894975338136063695510593414907458792199");
+                return;
+            }
+            if(port == 5001){
+                this.nodeId = new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799");
+            }
         }
         catch (Exception e) {
             throw new RuntimeException(e);

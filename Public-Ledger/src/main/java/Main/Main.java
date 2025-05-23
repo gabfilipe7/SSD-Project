@@ -303,7 +303,7 @@ public class Main {
 
     private void connectToBootstrapNodes() {
         List<Node> bootstrapNodes = List.of(
-                new Node( new BigInteger("69784748387363365747082763450260950682476036662102637451155264012668469145477"),"127.0.0.1", 5000,20,true),
+                new Node( new BigInteger("114463119885993250460859498894823303590894975338136063695510593414907458792199"),"127.0.0.1", 5000,20,true),
                 new Node( new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799"),"127.0.0.1", 5001,20,true)
         );
 
@@ -343,7 +343,7 @@ public class Main {
 
         try {
             System.out.println("Waiting for 4 seconds before continuing...");
-            Thread.sleep(4000);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             System.err.println("Thread sleep interrupted: " + e.getMessage());
         }

@@ -52,7 +52,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public RpcServer(Node localNode, Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
-        this.maxTransactionsPerBlock = 3;
+        this.maxTransactionsPerBlock = 2;
     }
 
     @Override
@@ -115,21 +115,32 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             assembledTransaction.setSignature(request.getSignature().toByteArray());
             double score = assembledTransaction.validateTransaction();
             if (score == 1) {
+                BigInteger nodeId =  new BigInteger(Utils.sha256(assembledTransaction.getSender().getEncoded()),16);
 
-                BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().getEncoded()),16);
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
-                double newScore = rep.getScore() + 0.01;
-                rep.setScore(newScore);
-                rep.setLastUpdated(Instant.now());
-                this.localNode.reputationMap.put(nodeId,rep);
+
+                if(rep==null){
+                    rep = new Reputation(0.01,Instant.now());
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                else{
+                    double newScore = rep.getScore() + 0.01;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
 
                 byte[] signature = rep.signReputation(localNode.getPrivateKey(), nodeId);
+                Reputation finalRep = rep;
                 CompletableFuture.runAsync(() -> {
-                    rpcClient.gossipReputation(rep, nodeId, signature, localNode);
+                    rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
 
-                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getTarget().equals(localNode.getPublicKey())){
+                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getAuctionOwnerId().equals(localNode.getId())){
                     this.localNode.updateBalance(assembledTransaction.getAmount());
+                    System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " tokens from user " +
+                            assembledTransaction.getSender() + " for auction ID: " + assembledTransaction.getAuctionId());
+
                 }
 
                 rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
@@ -161,7 +172,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         try{
             com.kademlia.grpc.Block receivedBlock = request.getBlockData();
 
-            Reputation senderReputation = localNode.reputationMap.get(new BigInteger(String.valueOf(request.getSenderId())));
+            Reputation senderReputation = localNode.reputationMap.get(new BigInteger(request.getSenderId()));
             if (senderReputation == null || senderReputation.getScore() < 0.2) {
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
@@ -345,7 +356,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     @Override
     public void sendPaymentRequest(PaymentRequest request, StreamObserver<PaymentRequestResponse> responseObserver) {
-        String toNodeId = request.getTo();
+        String toNodeId = request.getAuctionWinnerId();
         if (!toNodeId.equals(this.localNode.getId().toString())) {
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
             responseObserver.onCompleted();
@@ -382,7 +393,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         if (this.localNode.getBalance() >= amount) {
             this.localNode.updateBalance(-amount);
 
-            Transaction transaction = new Transaction(Transaction.TransactionType.AuctionPayment, this.localNode.getPublicKey(),  (double) amount);
+            Transaction transaction = new Transaction(Transaction.TransactionType.AuctionPayment, this.localNode.getPublicKey(), new BigInteger(request.getAuctionOwnerId()),  (double) amount);
 
             transaction.signTransaction(this.localNode.getPrivateKey());
 

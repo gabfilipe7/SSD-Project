@@ -168,30 +168,36 @@ public class Blockchain {
 
     public void print() {
         StringBuilder sb = new StringBuilder();
-        String blockSeparator = "==========================================";
-        String arrow = "                 ↓";
+        String blockTop = "╔═════════════════════════════════════════════════════════════════════════╗";
+        String blockBottom = "╚═════════════════════════════════════════════════════════════════════════╝";
+        String blockConnector = "                ║";
+        String arrow = "                                    ║\n                                    ║";
 
         for (int i = 0; i < chain.size(); i++) {
             Block block = chain.get(i);
-            sb.append(blockSeparator).append("\n");
-            sb.append("Block #").append(block.getIndex()).append("\n");
-            sb.append(blockSeparator).append("\n");
-            sb.append("Hash: ").append(block.getBlockHash()).append("\n");
-            sb.append("Prev: ").append(block.getPreviousBlockHash()).append("\n");
-            sb.append("Time: ").append(new Date(block.getTimestamp())).append("\n");
-            sb.append("Nonce: ").append(block.getNonce()).append("\n");
-            sb.append("Transactions:").append("\n");
+
+            sb.append(blockTop).append("\n");
+            sb.append("║ Block #").append(String.format("%-63s", block.getIndex())).append("  ║\n");
+            sb.append("║ Hash: ").append(String.format("%-59s", block.getBlockHash())).append("  ║\n");
+            sb.append("║ Prev: ").append(String.format("%-64s", block.getPreviousBlockHash())).append("  ║\n");
+            sb.append("║ Time: ").append(String.format("%-66s", new Date(block.getTimestamp()))).append("║\n");
+            sb.append("║ Nonce: ").append(String.format("%-65s", block.getNonce())).append("║\n");
+            sb.append("║ Transactions:").append(String.format("%-59s", "")).append("║\n");
+
             for (Transaction tx : block.getTransactions()) {
-                sb.append("  - ").append(tx.toString()).append("\n");
+                sb.append("║   • ").append(String.format("%-60s", tx.getTransactionId())).append("        ║\n");
             }
+
+            sb.append(blockBottom).append("\n");
+
             if (i < chain.size() - 1) {
-                sb.append(blockSeparator).append("\n");
                 sb.append(arrow).append("\n");
             }
         }
-        sb.append(blockSeparator).append("\n");
+
         System.out.println(sb.toString());
     }
+
 
 
     public void clearMempool() {
@@ -202,7 +208,6 @@ public class Blockchain {
         String hash = "0000000000000000000000000000000000000000000000000000000000000000";
         long timestamp = System.currentTimeMillis();
         List<Transaction> firstTransaction = new ArrayList<>();
-        firstTransaction.add(null);
         Block genesisBlock = new Block(0,hash,hash,timestamp,firstTransaction,0);
         this.chain.add(genesisBlock);
     }

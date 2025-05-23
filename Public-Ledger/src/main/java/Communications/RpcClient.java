@@ -100,7 +100,6 @@ public class RpcClient {
                     localNode.reputationMap.put(peer.getId(),reputation);
                 }
 
-
                 return true;
             }
             else{
@@ -350,6 +349,7 @@ public class RpcClient {
 
             blockMessage = BlockMessage.newBuilder()
                     .setBlockData(protoBlock)
+                    .setSenderId(localNode.getId().toString())
                     .build();
 
         } catch (Exception e) {
@@ -579,8 +579,8 @@ public class RpcClient {
         try {
             PaymentRequest request = PaymentRequest.newBuilder()
                     .setAuctionId(auctionId.toString())
-                    .setFrom(this.localNode.getId().toString())
-                    .setTo(winner.getId().toString())
+                    .setAuctionOwnerId(this.localNode.getId().toString())
+                    .setAuctionWinnerId(winner.getId().toString())
                     .setAmount(amount)
                     .build();
 
@@ -597,6 +597,7 @@ public class RpcClient {
             } else {
                 System.out.println("Payment request rejected or failed: " + winner.getId());
             }
+            channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             System.err.println("Failed to send payment request to " + winner.getId() + ": " + e.getMessage());
         }

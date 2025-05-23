@@ -19,7 +19,7 @@ public class PublicKeyAdapter implements JsonSerializer<PublicKey>, JsonDeserial
         try {
             byte[] keyBytes = Base64.getDecoder().decode(json.getAsString());
             X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA", "BC");
             return keyFactory.generatePublic(spec);
         } catch (Exception e) {
             throw new JsonParseException("Failed to deserialize PublicKey", e);

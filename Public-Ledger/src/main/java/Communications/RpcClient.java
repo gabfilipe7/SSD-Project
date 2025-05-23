@@ -18,7 +18,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
-
 import java.security.PublicKey;
 import java.time.Instant;
 import java.util.concurrent.*;
@@ -41,7 +40,7 @@ public class RpcClient {
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
-            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
+            .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     public RpcClient(Node localNode,Blockchain blockchain) {
@@ -92,6 +91,7 @@ public class RpcClient {
 
                     byte[] signature = rep.signReputation(localNode.getPrivateKey(),peer.getId());
                     CompletableFuture.runAsync(() -> {
+                        System.out.println("BATATAS3");
                         gossipReputation(rep, peer.getId(), signature, localNode);
                     });
                 }
@@ -119,6 +119,9 @@ public class RpcClient {
 
     public CompletableFuture<List<Node>> findNode(BigInteger targetId) {
         List<Node> initialPeers = this.localNode.findClosestNodes(targetId, 3);
+        if (initialPeers == null) {
+            initialPeers = new ArrayList<>();
+        }
         Set<Node> alreadyChecked = new HashSet<>();
         Set<Node> discovered = new HashSet<>(initialPeers);
 
@@ -292,10 +295,13 @@ public class RpcClient {
                     this.localNode.reputationMap.put(node.getId(),rep);
                     byte[] signature = rep.signReputation(this.localNode.getPrivateKey(),node.getId());
                     CompletableFuture.runAsync(() -> {
+                        System.out.println("BATATAS4" + rep.toString());
                         gossipReputation(rep, node.getId(), signature, localNode);
                     });
                 }else{
-                    this.localNode.reputationMap.put(node.getId(), new Reputation(0,Instant.now()));
+                    Reputation newReputation = new Reputation(0,Instant.now());
+                    newReputation.generateId();
+                    this.localNode.reputationMap.put(node.getId(), newReputation);
                 }
                 return Optional.of(new HashSet<>(response.getValueList()));
             } else {
@@ -605,7 +611,7 @@ public class RpcClient {
 
     public void gossipReputation(Reputation reputation, BigInteger targetNodeId, byte[] signature, Node localNode) {
         GossipReputationRequest request;
-
+        System.out.println(reputation);
         try {
             request = GossipReputationRequest.newBuilder()
                     .setReputationMessageId(reputation.getReputationId().toString())
@@ -617,11 +623,15 @@ public class RpcClient {
                     .setSignature(ByteString.copyFrom(signature))
                     .build();
         } catch (Exception e) {
-            System.err.println("Failed to build GossipReputationRequest: " + e.getMessage());
+            System.err.println("Failed to build GossipReputationRequest: " + e);
             return;
         }
 
         for (Node neighbor : localNode.getAllNeighbours()) {
+
+            if(neighbor.getId().equals(targetNodeId) || neighbor.getId().equals(localNode.getId())){
+                continue;
+            }
 
             ManagedChannel channel = null;
             try {

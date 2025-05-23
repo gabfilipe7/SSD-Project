@@ -111,7 +111,9 @@ public class Node {
 
         Reputation rep = reputationMap.get(node.getId());
         if (rep == null) {
-            reputationMap.put(node.getId(), new Reputation(0,Instant.now()));
+            rep = new Reputation(0,Instant.now());
+            rep.generateId();
+            reputationMap.put(node.getId(), rep);
         }
         return success;
     }

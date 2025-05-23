@@ -9,6 +9,7 @@ import java.security.Security;
 import java.security.Signature;
 import java.time.Instant;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 public class Reputation {
@@ -27,6 +28,10 @@ public class Reputation {
     public void setReputationId(UUID reputationId) { this.reputationId = reputationId; }
     public UUID getReputationId() { return this.reputationId;  }
 
+    public void generateId() {
+        this.reputationId = UUID.randomUUID();
+    }
+
     public Instant getLastUpdated() { return lastUpdated; }
     public void setLastUpdated(Instant lastUpdated) { this.lastUpdated = lastUpdated; }
 
@@ -34,9 +39,10 @@ public class Reputation {
         try {
             Security.addProvider(new BouncyCastleProvider());
 
-            String data = nodeId.toString() + score + lastUpdated.toString();
+            String data = nodeId.toString() + score + lastUpdated.truncatedTo(ChronoUnit.SECONDS).toString();
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
-
+            System.out.println("DATA STRING" + data);
+            System.out.println("DATA STRING2 " + message);
             Signature signature = Signature.getInstance("SHA256withRSA", "BC");
             signature.initSign(privateKey);
             signature.update(message);

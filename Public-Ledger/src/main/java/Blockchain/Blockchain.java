@@ -10,10 +10,7 @@ public class Blockchain {
     private final Map<UUID, Transaction> mempool = new ConcurrentHashMap<>();
 
     public Blockchain() {
-
-
         chain = new ArrayList<>();
-        createGenesisBlock();
     }
 
     public Blockchain(List<Block> Chain) {

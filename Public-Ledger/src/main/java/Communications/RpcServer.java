@@ -23,6 +23,7 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,13 +47,13 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
-            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
+            .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     public RpcServer(Node localNode, Blockchain blockchain) {
         this.localNode = localNode;
         this.blockchain = blockchain;
-        this.maxTransactionsPerBlock = 2;
+        this.maxTransactionsPerBlock = 1;
     }
 
     @Override
@@ -121,6 +122,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
                 if(rep==null){
                     rep = new Reputation(0.01,Instant.now());
+                    rep.generateId();
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
                 else{
@@ -129,17 +131,16 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     rep.setLastUpdated(Instant.now());
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
-
-                byte[] signature = rep.signReputation(localNode.getPrivateKey(), nodeId);
                 Reputation finalRep = rep;
+                byte[] signature = finalRep.signReputation(localNode.getPrivateKey(), nodeId);
                 CompletableFuture.runAsync(() -> {
+                    System.out.println("BATATAS5"+ finalRep.toString());
                     rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
 
                 if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getAuctionOwnerId().equals(localNode.getId())){
                     this.localNode.updateBalance(assembledTransaction.getAmount());
-                    System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " tokens from user " +
-                            assembledTransaction.getSender() + " for auction ID: " + assembledTransaction.getAuctionId());
+                    System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " for auction ID: " + assembledTransaction.getAuctionId());
 
                 }
 
@@ -148,14 +149,23 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             } else{
                 BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
-                double newScore = rep.getScore() - score;
-                rep.setScore(newScore);
-                rep.setLastUpdated(Instant.now());
-                this.localNode.reputationMap.put(nodeId,rep);
 
+                if(rep==null){
+                    rep = new Reputation(0,Instant.now());
+                    rep.generateId();
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                else{
+                    double newScore = rep.getScore() - score;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                Reputation finalRep = rep;
                 byte[] signature = rep.signReputation(localNode.getPrivateKey(), nodeId);
                 CompletableFuture.runAsync(() -> {
-                    rpcClient.gossipReputation(rep, nodeId, signature, localNode);
+                    System.out.println("BATATAS1");
+                    rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
 
             }
@@ -209,14 +219,22 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
                     BigInteger senderId = new BigInteger(String.valueOf(request.getSenderId()));
                     Reputation rep = this.localNode.reputationMap.get(senderId);
-                    double newScore = rep.getScore() + 0.03;
-                    rep.setScore(newScore);
-                    rep.setLastUpdated(Instant.now());
-                    this.localNode.reputationMap.put(senderId,rep);
+                    if(rep==null){
+                        rep = new Reputation(0,Instant.now());
+                        rep.generateId();
+                        this.localNode.reputationMap.put(senderId,rep);
+                    }
+                    else{
+                        double newScore = rep.getScore() + 0.03;
+                        rep.setScore(newScore);
+                        rep.setLastUpdated(Instant.now());
+                        this.localNode.reputationMap.put(senderId,rep);
+                    }
 
+                    Reputation finalRep = rep;
                     byte[] signature = rep.signReputation(localNode.getPrivateKey(), senderId);
                     CompletableFuture.runAsync(() -> {
-                        rpcClient.gossipReputation(rep, senderId, signature, localNode);
+                        rpcClient.gossipReputation(finalRep, senderId, signature, localNode);
                     });
 
                     blockchain.AddNewBlock(block);
@@ -232,14 +250,23 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 else {
                     BigInteger senderId = new BigInteger(String.valueOf(request.getSenderId()));
                     Reputation rep = this.localNode.reputationMap.get(senderId);
-                    double newScore = rep.getScore() - score;
-                    rep.setScore(newScore);
-                    rep.setLastUpdated(Instant.now());
-                    this.localNode.reputationMap.put(senderId,rep);
 
+                    if(rep==null){
+                        rep = new Reputation(0,Instant.now());
+                        rep.generateId();
+                        this.localNode.reputationMap.put(senderId,rep);
+                    }
+                    else{
+                        double newScore = rep.getScore() - score;
+                        rep.setScore(newScore);
+                        rep.setLastUpdated(Instant.now());
+                        this.localNode.reputationMap.put(senderId,rep);
+                    }
+                    Reputation finalRep = rep;
                     byte[] signature = rep.signReputation(localNode.getPrivateKey(), senderId);
                     CompletableFuture.runAsync(() -> {
-                        rpcClient.gossipReputation(rep, senderId, signature, localNode);
+                        System.out.println("BATATAS2");
+                        rpcClient.gossipReputation(finalRep, senderId, signature, localNode);
                     });
 
 
@@ -432,40 +459,50 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
             PublicKey publicKey = keyFactory.generatePublic(keySpec);
 
-            String data = request.getReputationMessageId() + request.getScore() + request.getLastUpdated() ;
+            String lastUpdate = Instant.ofEpochMilli(request.getLastUpdated()).truncatedTo(ChronoUnit.SECONDS).toString();
+            String data = request.getNodeId() + request.getScore() + lastUpdate ;
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
-
+            System.out.println("Costa rica 1");
             Signature sig = Signature.getInstance("SHA256withRSA", "BC");
             sig.initVerify(publicKey);
             sig.update(message);
             boolean validSignature = sig.verify(request.getSignature().toByteArray());
-
+            System.out.println("ASSINATURA VALIDA OU NÃO:" +validSignature );
             if(!validSignature){
-
+                System.out.println("Costa rica 2");
                 BigInteger nodeId = new BigInteger(request.getNodeId());
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
-                double newScore = rep.getScore() - 0.2;
-                rep.setScore(newScore);
-                rep.setLastUpdated(Instant.now());
-                this.localNode.reputationMap.put(nodeId,rep);
-
+                if(rep==null){
+                    rep = new Reputation(0,Instant.now());
+                    rep.generateId();
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                else{
+                    double newScore = rep.getScore() - 0.2;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                System.out.println("Costa rica 3");
+                Reputation finalRep = rep;
                 byte[] signature = rep.signReputation(localNode.getPrivateKey(), nodeId);
                 CompletableFuture.runAsync(() -> {
-                    rpcClient.gossipReputation(rep, nodeId, signature, localNode);
+                    rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
-
+                System.out.println("Costa rica 4");
                 responseObserver.onNext(GossipReputationResponse.newBuilder()
                         .setAccepted(false)
                         .build());
                 responseObserver.onCompleted();
                 return;
             }
-
+            System.out.println("Costa rica 5");
             if (reputationIds.contains(reputationId)) {
                 responseObserver.onNext(GossipReputationResponse.newBuilder()
                         .setAccepted(true)
                         .build());
                 responseObserver.onCompleted();
+                return;
             }
             else{
                 reputationIds.add(reputationId);
@@ -517,6 +554,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             localNode.reputationMap.put(targetNodeId, updatedRep);
 
             byte[] signature = updatedRep.signReputation(localNode.getPrivateKey(), targetNodeId);
+            System.out.println("BATATAS6");
             rpcClient.gossipReputation(updatedRep, targetNodeId, signature ,localNode);
 
             responseObserver.onNext(GossipReputationResponse.newBuilder()
@@ -525,6 +563,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             responseObserver.onCompleted();
 
         } catch (Exception e) {
+            System.out.println(e);
             responseObserver.onNext(GossipReputationResponse.newBuilder()
                     .setAccepted(false)
                     .build());

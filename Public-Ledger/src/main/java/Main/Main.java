@@ -42,7 +42,7 @@ public class Main {
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
-            .registerTypeAdapter(PublicKey.class, new PublicKeyAdapter())
+            .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
     //fault mechanism
@@ -217,6 +217,11 @@ public class Main {
 
         Set<String> auctionJson = localNode.getValues(key);
 
+        if (auctionJson == null || auctionJson.isEmpty()) {
+            System.out.print("No auction was found with that Id");
+            return;
+        }
+
         Auction auction = gson.fromJson(auctionJson.iterator().next(),Auction.class);
 
 
@@ -265,6 +270,7 @@ public class Main {
         Set<String> values = rpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
 
         if(values.isEmpty()){
+            System.out.print("No auction was found with that Id");
             return;
         }
 
@@ -311,6 +317,7 @@ public class Main {
             System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
             boolean connected = rpcClient.ping(bootstrap,localNode);
             Reputation reputation = new Reputation(0.7,Instant.now());
+            reputation.generateId();
             localNode.reputationMap.put(bootstrap.getId(),reputation);
             if (connected) {
                 this.localNode.addNode(bootstrap);

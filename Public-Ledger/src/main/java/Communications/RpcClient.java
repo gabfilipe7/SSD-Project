@@ -734,29 +734,29 @@ public Optional<Set<String>> findValue(String key, int ttl) {
         }
     }
 
+    public CompletableFuture<Boolean> pay(Transaction transaction, byte[] signature) {
+        CompletableFuture<Boolean> futureResult = new CompletableFuture<>();
 
-    public boolean pay(Transaction transaction, byte[] signature) {
         TransactionMessage transactionMessage;
-
         try {
-
-            String transactionJson = gson.toJson(transaction,Transaction.class);
+            String transactionJson = gson.toJson(transaction, Transaction.class);
 
             transactionMessage = TransactionMessage.newBuilder()
                     .setTransactionData(transactionJson)
                     .setSignature(ByteString.copyFrom(signature))
                     .setSenderNodeId(localNode.getId().toString())
                     .build();
-
         } catch (Exception e) {
             System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
-            return false;
+            futureResult.complete(false);
+            return futureResult;
         }
 
-        AtomicBoolean result = new AtomicBoolean(false);
         findNode(transaction.getAuctionOwnerId()).thenAccept(closeToWinner -> {
-            for(Node node : closeToWinner){
-                if(node.getId().equals(transaction.getAuctionOwnerId())){
+            boolean success = false;
+
+            for (Node node : closeToWinner) {
+                if (node.getId().equals(transaction.getAuctionOwnerId())) {
                     ManagedChannel channel = null;
                     try {
                         channel = ManagedChannelBuilder.forAddress(node.getIpAddress(), node.getPort())
@@ -769,13 +769,11 @@ public Optional<Set<String>> findValue(String key, int ttl) {
                                 .pay(transactionMessage);
 
                         if (response.getSuccess()) {
-                            result.set(true);
-                            System.out.println("Successfully payed " + node.getId());
+                            success = true;
+                            System.out.println("Successfully paid to " + node.getId());
                         } else {
-                            result.set(false);
                             System.out.println("Failed to pay to " + node.getId());
                         }
-
                     } catch (StatusRuntimeException e) {
                         System.err.println("gRPC error while paying to " + node.getId() + ": " + e.getStatus().getDescription());
                     } catch (Exception e) {
@@ -786,17 +784,22 @@ public Optional<Set<String>> findValue(String key, int ttl) {
                                 channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
                             } catch (InterruptedException e) {
                                 System.err.println("Channel shutdown interrupted: " + e.getMessage());
-
                             }
                         }
                     }
                 }
             }
+
+            futureResult.complete(success);
+
+        }).exceptionally(ex -> {
+            System.err.println("Error during findNode: " + ex.getMessage());
+            futureResult.complete(false);
+            return null;
         });
 
-
-        return result.get();
-
+        return futureResult;
     }
+
 
 }

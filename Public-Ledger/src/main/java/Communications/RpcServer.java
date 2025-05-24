@@ -428,11 +428,13 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             transaction.signTransaction(this.localNode.getPrivateKey());
 
-            boolean success = rpcClient.pay(transaction, transaction.getSignature());
-
-            if(success){
-                this.localNode.updateBalance(-amount);
-            }
+          rpcClient.pay(transaction, transaction.getSignature()).thenAccept(success -> {
+                if (success) {
+                    this.localNode.updateBalance(-amount);
+                } else {
+                    System.out.println("Payment failed");
+                }
+            });
 
 
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(true).build());

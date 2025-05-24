@@ -16,7 +16,6 @@ import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
 
-import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.time.Instant;
 import java.util.concurrent.*;
@@ -733,6 +732,71 @@ public Optional<Set<String>> findValue(String key, int ttl) {
                 System.err.println("Failed to contact node " + candidate.getId() + ": " + e.getMessage());
             }
         }
+    }
+
+
+    public boolean pay(Transaction transaction, byte[] signature) {
+        TransactionMessage transactionMessage;
+
+        try {
+
+            String transactionJson = gson.toJson(transaction,Transaction.class);
+
+            transactionMessage = TransactionMessage.newBuilder()
+                    .setTransactionData(transactionJson)
+                    .setSignature(ByteString.copyFrom(signature))
+                    .setSenderNodeId(localNode.getId().toString())
+                    .build();
+
+        } catch (Exception e) {
+            System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
+            return false;
+        }
+
+        AtomicBoolean result = new AtomicBoolean(false);
+        findNode(transaction.getAuctionOwnerId()).thenAccept(closeToWinner -> {
+            for(Node node : closeToWinner){
+                if(node.getId().equals(transaction.getAuctionOwnerId())){
+                    ManagedChannel channel = null;
+                    try {
+                        channel = ManagedChannelBuilder.forAddress(node.getIpAddress(), node.getPort())
+                                .usePlaintext()
+                                .build();
+
+                        KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+
+                        GossipResponse response = stub.withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                                .gossipTransaction(transactionMessage);
+
+                        if (response.getSuccess()) {
+                            result.set(true);
+                            System.out.println("Successfully payed " + node.getId());
+                        } else {
+                            result.set(false);
+                            System.out.println("Failed to pay to " + node.getId());
+                        }
+
+                    } catch (StatusRuntimeException e) {
+                        System.err.println("gRPC error while paying to " + node.getId() + ": " + e.getStatus().getDescription());
+                    } catch (Exception e) {
+                        System.err.println("Error while paying to " + node.getId() + ": " + e.getMessage());
+                    } finally {
+                        if (channel != null) {
+                            try {
+                                channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+                            } catch (InterruptedException e) {
+                                System.err.println("Channel shutdown interrupted: " + e.getMessage());
+
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+
+        return result.get();
+
     }
 
 }

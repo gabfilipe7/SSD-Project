@@ -137,12 +137,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
 
-                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getAuctionOwnerId().equals(localNode.getId())){
-                    this.localNode.updateBalance(assembledTransaction.getAmount());
-                    System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " for auction ID: " + assembledTransaction.getAuctionId());
-
-                }
-
                 rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
                 manageMempool(assembledTransaction);
             } else{
@@ -417,7 +411,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         }
 
         if (this.localNode.getBalance() >= amount) {
-            this.localNode.updateBalance(-amount);
 
             Transaction transaction = new Transaction(Transaction.TransactionType.AuctionPayment, this.localNode.getPublicKey(), new BigInteger(request.getAuctionOwnerId()),  (double) amount);
 
@@ -425,9 +418,12 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             transaction.signTransaction(this.localNode.getPrivateKey());
 
-            rpcClient.gossipTransaction(transaction, transaction.getSignature(), localNode, localNode.getId());
+            boolean success = rpcClient.pay(transaction, transaction.getSignature());
 
-            manageMempool(transaction);
+            if(success){
+                this.localNode.updateBalance(-amount);
+            }
+
 
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(true).build());
         } else {
@@ -572,19 +568,97 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     }
 
 
-    public void startMining(Block blockToMine) {
-        isMining = true;
-        this.currentBlockMining = blockToMine;
-        miningThread = new Thread(() -> {
-            blockToMine.mine(() -> isMining);
-            if (isMining && blockchain.verifyBlock(blockToMine) == 1) {
-                blockchain.AddNewBlock(blockToMine);
-                rpcClient.gossipBlock(blockToMine, localNode);
-                isMining = false;
-                currentBlockMining = null;
+    @Override
+    public void pay(TransactionMessage request, StreamObserver<GossipResponse> responseObserver) {
+        try {
+
+            Transaction assembledTransaction = gson.fromJson(request.getTransactionData(),Transaction.class);
+
+            Reputation senderReputation = localNode.reputationMap.get(new BigInteger(request.getSenderNodeId()));
+            if (senderReputation == null || senderReputation.getScore() < 0.2) {
+                responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
+                responseObserver.onCompleted();
+                return;
             }
-        });
-        miningThread.start();
+
+
+            assembledTransaction.setSignature(request.getSignature().toByteArray());
+            double score = assembledTransaction.validateTransaction();
+            if (score == 1) {
+                BigInteger nodeId =  new BigInteger(Utils.sha256(assembledTransaction.getSender().getEncoded()),16);
+
+                Reputation rep = this.localNode.reputationMap.get(nodeId);
+
+                if(rep==null){
+                    rep = new Reputation(0.2,Instant.now());
+                    rep.generateId();
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                else{
+                    double newScore = rep.getScore() + 0.2;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+
+                Reputation finalRep = rep;
+                byte[] signature = finalRep.signReputation(localNode.getPrivateKey(), nodeId);
+                CompletableFuture.runAsync(() -> {
+                    rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
+                });
+
+                if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getAuctionOwnerId().equals(localNode.getId())){
+                    this.localNode.updateBalance(assembledTransaction.getAmount());
+                    System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " for auction ID: " + assembledTransaction.getAuctionId());
+
+                }
+
+                rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
+                manageMempool(assembledTransaction);
+            } else{
+                BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
+                Reputation rep = this.localNode.reputationMap.get(nodeId);
+
+                if(rep==null){
+                    rep = new Reputation(0,Instant.now());
+                    rep.generateId();
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                else{
+                    double newScore = rep.getScore() - score;
+                    rep.setScore(newScore);
+                    rep.setLastUpdated(Instant.now());
+                    this.localNode.reputationMap.put(nodeId,rep);
+                }
+                Reputation finalRep = rep;
+                byte[] signature = rep.signReputation(localNode.getPrivateKey(), nodeId);
+                CompletableFuture.runAsync(() -> {
+                    rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
+                });
+
+            }
+
+            responseObserver.onNext(GossipResponse.newBuilder().setSuccess(score == 1).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            e.printStackTrace();
+            responseObserver.onError(Status.INTERNAL.withDescription("Failed to process transaction").asRuntimeException());
+        }
+    }
+
+    public void startMining(Block blockToMine) {
+    isMining = true;
+    this.currentBlockMining = blockToMine;
+    miningThread = new Thread(() -> {
+        blockToMine.mine(() -> isMining);
+        if (isMining && blockchain.verifyBlock(blockToMine) == 1) {
+            blockchain.AddNewBlock(blockToMine);
+            rpcClient.gossipBlock(blockToMine, localNode);
+            isMining = false;
+            currentBlockMining = null;
+        }
+    });
+    miningThread.start();
     }
 
     public void stopMining() {

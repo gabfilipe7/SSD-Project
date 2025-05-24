@@ -16,6 +16,7 @@ service KademliaService {
   rpc GetBlocksFrom (GetBlocksRequest) returns (GetBlocksResponse);
   rpc SendPaymentRequest(PaymentRequest) returns (PaymentRequestResponse);
   rpc GossipReputation (GossipReputationRequest) returns (GossipReputationResponse);
+  rpc Pay (TransactionMessage) returns (GossipResponse);
 }
 
 message PingRequest {

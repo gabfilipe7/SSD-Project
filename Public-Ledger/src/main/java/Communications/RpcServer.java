@@ -33,6 +33,8 @@ import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static Utils.Utils.sha256;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
@@ -486,7 +488,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
                 else{
-                    double newScore = rep.getScore() - 0.2;
+                    double newScore = max(rep.getScore() - 0.2,0);
                     rep.setScore(newScore);
                     rep.setLastUpdated(Instant.now());
                     this.localNode.reputationMap.put(nodeId,rep);
@@ -607,7 +609,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
                 else{
-                    double newScore = rep.getScore() + 0.2;
+                    double newScore = min(rep.getScore() + 0.2,1);
                     rep.setScore(newScore);
                     rep.setLastUpdated(Instant.now());
                     this.localNode.reputationMap.put(nodeId,rep);
@@ -637,7 +639,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
                 else{
-                    double newScore = rep.getScore() - score;
+                    double newScore = max(rep.getScore() - score,0);
                     rep.setScore(newScore);
                     rep.setLastUpdated(Instant.now());
                     this.localNode.reputationMap.put(nodeId,rep);

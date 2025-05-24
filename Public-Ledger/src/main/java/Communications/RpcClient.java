@@ -27,6 +27,7 @@ import java.math.BigInteger;
 import java.util.*;
 
 import static Utils.Utils.sha256;
+import static java.lang.Math.min;
 
 public class RpcClient {
 
@@ -84,7 +85,7 @@ public class RpcClient {
                 Reputation rep = localNode.reputationMap.get(peer.getId());
 
                 if(rep != null){
-                    double newScore = rep.getScore() + 0.005;
+                    double newScore = min(rep.getScore() + 0.005,1);
                     rep.setScore(newScore);
                     rep.setLastUpdated(Instant.now());
                     localNode.reputationMap.put(peer.getId(),rep);
@@ -313,7 +314,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
                         // Update reputation
                         Reputation rep = this.localNode.reputationMap.get(node.getId());
                         if (rep != null) {
-                            double newScore = rep.getScore() + 0.01;
+                            double newScore = min(rep.getScore() + 0.01,1);
                             rep.setScore(newScore);
                             rep.setLastUpdated(Instant.now());
                             this.localNode.reputationMap.put(node.getId(), rep);

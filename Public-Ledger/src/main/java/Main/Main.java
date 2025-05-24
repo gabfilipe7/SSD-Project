@@ -174,10 +174,11 @@ public class Main {
         String newAuctionJson = gson.toJson(newAuction);
         localNode.addKey(key, newAuctionJson);
         System.out.printf("The auction for the product %s was created successfully.%n", productName);
+        System.out.println("Chave:" + new BigInteger(key,16));
         rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.AUCTION,newAuctionJson);
-                RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
+                rpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
             }
         });
     }
@@ -242,7 +243,7 @@ public class Main {
         rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.CLOSE,auctionIdInput);
-                RpcClient.store(node.getIpAddress(),node.getPort(),"auction-close"+ UUID.fromString(auctionIdInput),gson.toJson(value));
+                rpcClient.store(node.getIpAddress(),node.getPort(),"auction-close"+ UUID.fromString(auctionIdInput),gson.toJson(value));
             }
             System.out.println("Auction closed successfully.");
             Bid winningBid = auction.getWinningBid().orElse(null);
@@ -265,9 +266,9 @@ public class Main {
 
         String auctionIdInput = this.scanner.nextLine();
 
-        String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
+        String key = sha256("auction-info:" + auctionIdInput);
 
-        Set<String> values = rpcClient.findValue(key, localNode, 10).orElse(new HashSet<>());
+        Set<String> values = rpcClient.findValue(key, 10).orElse(new HashSet<>());
 
         if(values.isEmpty()){
             System.out.print("No auction was found with that Id");
@@ -296,11 +297,14 @@ public class Main {
         String bidJson = gson.toJson(bid);
 
         String storeKey = sha256("bid:" + auction.getAuctionId());
+        System.out.println("Chave Bid:" + storeKey);
 
+        localNode.addKey(storeKey,bidJson);
         rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
+                System.out.println(node.getId());
                 StoreValue value = new StoreValue(StoreValue.Type.BID,bidJson);
-                RpcClient.store(node.getIpAddress(),node.getPort(),storeKey,gson.toJson(value));
+                rpcClient.store(node.getIpAddress(),node.getPort(),storeKey,gson.toJson(value));
             }
             System.out.println("Bid placed successfully.");
         });
@@ -361,11 +365,12 @@ public class Main {
     private void subscribeAuction(){
         System.out.println("Insert the Id of the auction you wish to subscribe: ");
         String auctionIdInput = this.scanner.nextLine();
-        String key = sha256("auction-subs:" + auctionIdInput);
-        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
+        String subscribeKey = sha256("auction-subs:" + auctionIdInput);
+        String auctionKey = sha256("auction-info:" + auctionIdInput);
+        rpcClient.findNode(new BigInteger(auctionKey,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.SUBSCRIPTION ,localNode.getId().toString());
-                RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
+                rpcClient.store(node.getIpAddress(),node.getPort(),subscribeKey,gson.toJson(value));
             }
         });
     }

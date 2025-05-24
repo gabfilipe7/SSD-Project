@@ -41,8 +41,6 @@ public class Reputation {
 
             String data = nodeId.toString() + score + lastUpdated.truncatedTo(ChronoUnit.SECONDS).toString();
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
-            System.out.println("DATA STRING" + data);
-            System.out.println("DATA STRING2 " + message);
             Signature signature = Signature.getInstance("SHA256withRSA", "BC");
             signature.initSign(privateKey);
             signature.update(message);

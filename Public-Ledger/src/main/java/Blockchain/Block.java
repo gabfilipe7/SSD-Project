@@ -16,7 +16,7 @@ public class Block {
     private final long Timestamp;
     private final List<Transaction> Transactions;
     private long Nonce;
-    private final int Difficulty = 3;
+    private final int Difficulty = 4;
 
     public Block(long index, String previousBlockHash, List<Transaction> transactions ) {
         this.PreviousBlockHash = previousBlockHash;

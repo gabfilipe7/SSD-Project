@@ -134,7 +134,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 Reputation finalRep = rep;
                 byte[] signature = finalRep.signReputation(localNode.getPrivateKey(), nodeId);
                 CompletableFuture.runAsync(() -> {
-                    System.out.println("BATATAS5"+ finalRep.toString());
                     rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
 
@@ -297,7 +296,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             switch (value.getType()) {
                 case AUCTION:
                     System.out.println("Recieved new auction information.");
-                    handleAuction(key, value.getPayload());
+                    handleAuction(key, value.getPayload(), request.getSrc());
                     break;
 
                 case SUBSCRIPTION:
@@ -422,6 +421,8 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             Transaction transaction = new Transaction(Transaction.TransactionType.AuctionPayment, this.localNode.getPublicKey(), new BigInteger(request.getAuctionOwnerId()),  (double) amount);
 
+            transaction.setAuctionId(UUID.fromString(auctionId));
+
             transaction.signTransaction(this.localNode.getPrivateKey());
 
             rpcClient.gossipTransaction(transaction, transaction.getSignature(), localNode, localNode.getId());
@@ -462,14 +463,13 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             String lastUpdate = Instant.ofEpochMilli(request.getLastUpdated()).truncatedTo(ChronoUnit.SECONDS).toString();
             String data = request.getNodeId() + request.getScore() + lastUpdate ;
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
-            System.out.println("Costa rica 1");
+
             Signature sig = Signature.getInstance("SHA256withRSA", "BC");
             sig.initVerify(publicKey);
             sig.update(message);
             boolean validSignature = sig.verify(request.getSignature().toByteArray());
-            System.out.println("ASSINATURA VALIDA OU NÃO:" +validSignature );
             if(!validSignature){
-                System.out.println("Costa rica 2");
+
                 BigInteger nodeId = new BigInteger(request.getNodeId());
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
                 if(rep==null){
@@ -483,7 +483,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     rep.setLastUpdated(Instant.now());
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
-                System.out.println("Costa rica 3");
+
                 Reputation finalRep = rep;
                 byte[] signature = rep.signReputation(localNode.getPrivateKey(), nodeId);
                 CompletableFuture.runAsync(() -> {
@@ -496,7 +496,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 responseObserver.onCompleted();
                 return;
             }
-            System.out.println("Costa rica 5");
+
             if (reputationIds.contains(reputationId)) {
                 responseObserver.onNext(GossipReputationResponse.newBuilder()
                         .setAccepted(true)
@@ -604,7 +604,14 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         Bid bid = gson.fromJson(payload, Bid.class);
         String auctionKey = sha256("auction-info:" + bid.getAuctionId());
-        String auctionJson = localNode.getValues(auctionKey).iterator().next();
+
+        Set<String> auctionValue = localNode.getValues(auctionKey);
+
+        if(auctionValue == null || auctionValue.isEmpty() ){
+            return;
+        }
+
+        String auctionJson = auctionValue.iterator().next();
 
         Auction auction = gson.fromJson(auctionJson, Auction.class);
 
@@ -621,7 +628,14 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         localNode.addKey(key, payload);
 
         String auctionKey = sha256("auction-info:" + payload);
-        String auctionJson = localNode.getValues(auctionKey).iterator().next();
+
+        Set<String> auctionValue = localNode.getValues(auctionKey);
+
+        if(auctionValue == null || auctionValue.isEmpty() ){
+            return;
+        }
+
+        String auctionJson = auctionValue.iterator().next();
 
         Auction auction = gson.fromJson(auctionJson, Auction.class);
 
@@ -635,10 +649,12 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         rpcClient.PublishAuctionClose(key, payload);
     }
-    public void handleAuction(String key, String payload){
+    public void handleAuction(String key, String payload, String srcNodeId){
         localNode.addKey(key,payload);
 
         Auction auction = gson.fromJson(payload,Auction.class);
+
+        localNode.addKey(sha256("auction-subs:" + auction.getAuctionId()), srcNodeId);
 
         localNode.addAuctionToAuctions(auction);
     }

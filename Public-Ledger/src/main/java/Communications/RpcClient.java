@@ -1,8 +1,5 @@
 package Communications;
 
-import Auction.Auction;
-import Auction.Bid;
-import Auction.AuctionMapEntry;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Identity.Reputation;
@@ -18,9 +15,13 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
+
+import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.time.Instant;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import Blockchain.Block;
 import java.math.BigInteger;
@@ -125,7 +126,7 @@ public class RpcClient {
         Set<Node> alreadyChecked = new HashSet<>();
         Set<Node> discovered = new HashSet<>(initialPeers);
 
-        return findNodeRecursive(targetId, initialPeers, alreadyChecked, discovered, 20, localNode.getK());
+        return findNodeRecursive(targetId, initialPeers, alreadyChecked, discovered, 20, 2);
     }
 
     private CompletableFuture<List<Node>> findNodeRecursive(
@@ -138,11 +139,11 @@ public class RpcClient {
     ) {
         if (ttl <= 0 || peers.isEmpty()) {
             List<Node> sorted = new ArrayList<>(discovered);
-            sorted.sort(new Utils(this.localNode));
+            sorted.sort(new Utils(targetId));
             return CompletableFuture.completedFuture(sorted.stream().limit(k).collect(Collectors.toList()));
         }
 
-        Utils nodeComparator = new Utils(this.localNode);
+        Utils nodeComparator = new Utils(targetId);
         peers.sort(nodeComparator);
 
         List<CompletableFuture<List<Node>>> tasks = new ArrayList<>();
@@ -212,6 +213,7 @@ public class RpcClient {
                         nodeInfo.getIp(),
                         nodeInfo.getPort()
                 ))
+                .filter(node -> !node.getId().equals(localNode.getId()))
                 .collect(Collectors.toList());
 
         for(Node node : nodes){
@@ -229,7 +231,7 @@ public class RpcClient {
         }
     }
 
-    public static boolean store(String ip, int port, String key, String value) {
+    public boolean store(String ip, int port, String key, String value) {
         ManagedChannel channel = null;
         try {
             channel = ManagedChannelBuilder.forAddress(ip, port)
@@ -241,6 +243,7 @@ public class RpcClient {
             StoreRequest request = StoreRequest.newBuilder()
                     .setKey(key)
                     .setValue(value)
+                    .setSrc(localNode.getId().toString())
                     .build();
 
             StoreResponse response = stub.store(request);
@@ -248,7 +251,9 @@ public class RpcClient {
             return response.getResponseType() == StoreResponseType.LOCAL_STORE;
 
         } catch (Exception e) {
-            e.printStackTrace();
+            if (channel != null) {
+                channel.shutdown();
+            }
             return false;
         } finally {
             if (channel != null) {
@@ -256,79 +261,116 @@ public class RpcClient {
             }
         }
     }
+public Optional<Set<String>> findValue(String key, int ttl) {
+    int alpha = 3;
 
-    public Optional<Set<String>> findValue(String key, Node node, int ttl) {
-        return findValue(key, node, ttl, new HashSet<>());
-    }
+    Set<String> visitedNodeIds = new HashSet<>();
+    Map<BigInteger, Node> closestNodes = new HashMap<>();
+    PriorityQueue<Node> queue = new PriorityQueue<>(Comparator.comparing(n -> xorDistance(key, n.getId())));
 
-    private Optional<Set<String>> findValue(String key, Node node, int ttl, Set<String> visitedNodeIds) {
-        if (ttl <= 0) {
-            return Optional.empty();
+    List<Node> initialNodes = localNode.findClosestNodes(new BigInteger(key,16),localNode.getK());
+    queue.addAll(initialNodes);
+    initialNodes.forEach(n -> closestNodes.put(n.getId(), n));
+
+    Set<String> foundValues = new HashSet<>();
+    AtomicReference<Boolean> valueFound = new AtomicReference<Boolean>();
+    valueFound.set(false);
+
+    while (!queue.isEmpty() && ttl-- > 0) {
+        List<Node> alphaNodes = new ArrayList<>();
+
+        while (!queue.isEmpty() && alphaNodes.size() < alpha) {
+            Node n = queue.poll();
+            if (!visitedNodeIds.contains(n.getId().toString())) {
+                alphaNodes.add(n);
+                visitedNodeIds.add(n.getId().toString());
+            }
         }
 
-        String nodeId = node.getId().toString();
-        if (visitedNodeIds.contains(nodeId)) {
-            return Optional.empty();
-        }
-        visitedNodeIds.add(nodeId);
+        if (alphaNodes.isEmpty()) break;
 
-        ManagedChannel channel = ManagedChannelBuilder
-                .forAddress(node.getIpAddress(), node.getPort())
-                .usePlaintext()
-                .build();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-        KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+        for (Node node : alphaNodes) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                ManagedChannel channel = null;
+                try {
+                    channel = ManagedChannelBuilder
+                            .forAddress(node.getIpAddress(), node.getPort())
+                            .usePlaintext()
+                            .build();
 
-        try {
-            FindValueRequest request = FindValueRequest.newBuilder()
-                    .setKey(key)
-                    .build();
+                    KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
-            FindValueResponse response = stub.findValue(request);
+                    FindValueRequest request = FindValueRequest.newBuilder()
+                            .setKey(key)
+                            .build();
 
-            if (response.getFound()) {
-                Reputation rep = this.localNode.reputationMap.get(node.getId());
-                if(rep != null){
-                    double newScore = rep.getScore() + 0.01;
-                    rep.setScore(newScore);
-                    rep.setLastUpdated(Instant.now());
-                    this.localNode.reputationMap.put(node.getId(),rep);
-                    byte[] signature = rep.signReputation(this.localNode.getPrivateKey(),node.getId());
-                    CompletableFuture.runAsync(() -> {
-                        System.out.println("BATATAS4" + rep.toString());
-                        gossipReputation(rep, node.getId(), signature, localNode);
-                    });
-                }else{
-                    Reputation newReputation = new Reputation(0,Instant.now());
-                    newReputation.generateId();
-                    this.localNode.reputationMap.put(node.getId(), newReputation);
-                }
-                return Optional.of(new HashSet<>(response.getValueList()));
-            } else {
-                for (NodeInfo nodeInfo : response.getNodesList()) {
-                    Node nextNode = new Node(
-                            new BigInteger(nodeInfo.getId()),
-                            nodeInfo.getIp(),
-                            nodeInfo.getPort()
-                    );
+                    FindValueResponse response = stub.findValue(request);
 
-                    Optional<Set<String>> result = findValue(key, nextNode, ttl - 1, visitedNodeIds);
-                    if (result.isPresent()) {
-                        return result;
+                    if (response.getFound()) {
+                        foundValues.addAll(response.getValueList());
+
+                        // Update reputation
+                        Reputation rep = this.localNode.reputationMap.get(node.getId());
+                        if (rep != null) {
+                            double newScore = rep.getScore() + 0.01;
+                            rep.setScore(newScore);
+                            rep.setLastUpdated(Instant.now());
+                            this.localNode.reputationMap.put(node.getId(), rep);
+
+                            byte[] signature = rep.signReputation(this.localNode.getPrivateKey(), node.getId());
+                            gossipReputation(rep, node.getId(), signature, localNode);
+                        } else {
+                            Reputation newReputation = new Reputation(0, Instant.now());
+                            newReputation.generateId();
+                            this.localNode.reputationMap.put(node.getId(), newReputation);
+                        }
+                        valueFound.set(true);
+                    } else {
+                        // Merge returned nodes into queue
+                        for (NodeInfo nodeInfo : response.getNodesList()) {
+                            Node newNode = new Node(
+                                    new BigInteger(nodeInfo.getId()),
+                                    nodeInfo.getIp(),
+                                    nodeInfo.getPort()
+                            );
+                            if (!visitedNodeIds.contains(newNode.getId().toString())) {
+                                queue.add(newNode);
+                                closestNodes.put(newNode.getId(), newNode);
+                            }
+                        }
+                    }
+
+                } catch (Exception e) {
+                } finally {
+                    if (channel != null) {
+                        channel.shutdown();
                     }
                 }
+            }));
+        }
 
-                return Optional.empty();
+        for (CompletableFuture<Void> f : futures) {
+            try {
+                f.get(3, TimeUnit.SECONDS);
+            } catch (Exception e) {
             }
+        }
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Optional.empty();
-        } finally {
-            channel.shutdown();
+        if (valueFound.get()) {
+            return Optional.of(foundValues);
         }
     }
 
+    return foundValues.isEmpty() ? Optional.empty() : Optional.of(foundValues);
+}
+
+    // XOR Distance helper
+    private BigInteger xorDistance(String key, BigInteger nodeId) {
+        BigInteger keyHash = new BigInteger(key,16);
+        return keyHash.xor(nodeId);
+    }
 
 
 
@@ -526,7 +568,7 @@ public class RpcClient {
         return blocks;
     }
 
-    public List<AuctionMapEntry> getAuctionListFromNetwork() {
+   /* public List<AuctionMapEntry> getAuctionListFromNetwork() {
         String key = Utils.sha256("auction_index");
         Set<String> auctionEntries = new HashSet<>();
         List<AuctionMapEntry> result = new ArrayList<>();
@@ -546,7 +588,7 @@ public class RpcClient {
                 .filter(AuctionMapEntry::getActive)
                 .collect(Collectors.toList());
     }
-
+*/
     public void PublishAuctionBid(UUID auctionId, String key, String payload) {
         String auctionKey = sha256("auction-subs:" + auctionId);
         Set<String> subscribers = localNode.getValues(auctionKey);
@@ -557,7 +599,7 @@ public class RpcClient {
             findNode(new BigInteger(nodeId)).thenAccept(closeNodes -> {
                 for(Node node : closeNodes){
                     if(Objects.equals(node.getId().toString(), nodeId)){
-                        RpcClient.store(node.getIpAddress(),node.getPort(),key, payloadJson);
+                        store(node.getIpAddress(),node.getPort(),key, payloadJson);
                     }
                 }
             });
@@ -574,7 +616,7 @@ public class RpcClient {
             findNode(new BigInteger(nodeId)).thenAccept(closeNodes -> {
                 for(Node node : closeNodes){
                     if(Objects.equals(node.getId().toString(), nodeId)){
-                        RpcClient.store(node.getIpAddress(),node.getPort(),key, payloadJson);
+                        store(node.getIpAddress(),node.getPort(),key, payloadJson);
                     }
                 }
             });
@@ -611,7 +653,6 @@ public class RpcClient {
 
     public void gossipReputation(Reputation reputation, BigInteger targetNodeId, byte[] signature, Node localNode) {
         GossipReputationRequest request;
-        System.out.println(reputation);
         try {
             request = GossipReputationRequest.newBuilder()
                     .setReputationMessageId(reputation.getReputationId().toString())

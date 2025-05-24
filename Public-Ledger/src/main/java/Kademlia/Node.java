@@ -152,7 +152,7 @@ public class Node {
 
         int i = 0;
         int j = 1;
-        Utils nodeComparator = new Utils(this);
+        Utils nodeComparator = new Utils(targetNodeId);
 
         for (int it = 0; it < this.routingTable.size(); it++) {
 

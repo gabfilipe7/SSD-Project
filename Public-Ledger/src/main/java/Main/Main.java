@@ -99,11 +99,8 @@ public class Main {
             isBootstrap = true;
         }
 */
-        if(!isBootstrap){
-            this.connectToBootstrapNodes();
-        }
 
-
+        this.connectToBootstrapNodes();
         System.out.println("My id is " + localNode.getId().toString());
 
         while (true) {
@@ -118,7 +115,8 @@ public class Main {
             System.out.println("(7) Subscribe to auction");
             System.out.println("(8) Check your balance");
             System.out.println("(9) Check the reputation table");
-            System.out.println("(10) Exit");
+            System.out.println("(10) Print neighbours");
+            System.out.println("(11) Exit");
             System.out.println("----------------------");
             System.out.print("Select an option:");
 
@@ -155,8 +153,12 @@ public class Main {
                     showPeerReputations();
                     break;
                 case 10:
+                    localNode.printAllNeighbours();
+                    break;
+                case 11:
                     System.out.println("Exiting...");
                     return;
+
                 default:
                     System.out.println("Invalid option. Try again.");
             }
@@ -318,17 +320,20 @@ public class Main {
         );
 
         for (Node bootstrap : bootstrapNodes) {
-            System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            boolean connected = rpcClient.ping(bootstrap,localNode);
-            Reputation reputation = new Reputation(0.7,Instant.now());
-            reputation.generateId();
-            localNode.reputationMap.put(bootstrap.getId(),reputation);
-            if (connected) {
-                this.localNode.addNode(bootstrap);
-                this.rpcClient.findNode(bootstrap.getId());
-                System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-            } else {
-                System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+            if(!bootstrap.getId().equals(localNode.getId()))
+            {
+                System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+                boolean connected = rpcClient.ping(bootstrap,localNode);
+                Reputation reputation = new Reputation(0.7,Instant.now());
+                reputation.generateId();
+                localNode.reputationMap.put(bootstrap.getId(),reputation);
+                if (connected) {
+                    this.localNode.addNode(bootstrap);
+                    this.rpcClient.findNode(bootstrap.getId());
+                    System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+                } else {
+                    System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
+                }
             }
         }
     }

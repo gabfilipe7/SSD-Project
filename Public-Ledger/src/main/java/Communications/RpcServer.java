@@ -44,6 +44,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     private volatile Block currentBlockMining;
     private Thread miningThread;
     private Set<UUID> reputationIds = new HashSet<>();
+    private Set<UUID> transactionIds = new HashSet<>();
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
@@ -99,6 +100,15 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             Transaction assembledTransaction = gson.fromJson(request.getTransactionData(),Transaction.class);
 
+            if (transactionIds.contains(assembledTransaction.getTransactionId())) {
+                responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
+                responseObserver.onCompleted();
+                return;
+            }
+            else{
+                transactionIds.add(assembledTransaction.getTransactionId());
+            }
+
             if (this.blockchain.containsTransaction(assembledTransaction.getTransactionId())){
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
@@ -121,7 +131,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
 
                 if(rep==null){
-                    rep = new Reputation(0.01,Instant.now());
+                    rep = new Reputation(0.51,Instant.now());
                     rep.generateId();
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
@@ -136,15 +146,15 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 CompletableFuture.runAsync(() -> {
                     rpcClient.gossipReputation(finalRep, nodeId, signature, localNode);
                 });
-
-                rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
+                System.out.println("PIOLHOS2");
+                rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(), new BigInteger(request.getSenderNodeId()));
                 manageMempool(assembledTransaction);
             } else{
                 BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
 
                 if(rep==null){
-                    rep = new Reputation(0,Instant.now());
+                    rep = new Reputation(0.3,Instant.now());
                     rep.generateId();
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
@@ -213,7 +223,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     BigInteger senderId = new BigInteger(String.valueOf(request.getSenderId()));
                     Reputation rep = this.localNode.reputationMap.get(senderId);
                     if(rep==null){
-                        rep = new Reputation(0,Instant.now());
+                        rep = new Reputation(0.3,Instant.now());
                         rep.generateId();
                         this.localNode.reputationMap.put(senderId,rep);
                     }
@@ -245,7 +255,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     Reputation rep = this.localNode.reputationMap.get(senderId);
 
                     if(rep==null){
-                        rep = new Reputation(0,Instant.now());
+                        rep = new Reputation(0.3,Instant.now());
                         rep.generateId();
                         this.localNode.reputationMap.put(senderId,rep);
                     }
@@ -469,7 +479,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 BigInteger nodeId = new BigInteger(request.getNodeId());
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
                 if(rep==null){
-                    rep = new Reputation(0,Instant.now());
+                    rep = new Reputation(0.3,Instant.now());
                     rep.generateId();
                     this.localNode.reputationMap.put(nodeId,rep);
                 }
@@ -612,15 +622,15 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " for auction ID: " + assembledTransaction.getAuctionId());
 
                 }
-
-                rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(),this.localNode, new BigInteger(request.getSenderNodeId()));
+                System.out.println("PIOLHOS");
+                rpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(), new BigInteger(request.getSenderNodeId()));
                 manageMempool(assembledTransaction);
             } else{
                 BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
                 Reputation rep = this.localNode.reputationMap.get(nodeId);
 
                 if(rep==null){
-                    rep = new Reputation(0,Instant.now());
+                    rep = new Reputation(0.3,Instant.now());
                     rep.generateId();
                     this.localNode.reputationMap.put(nodeId,rep);
                 }

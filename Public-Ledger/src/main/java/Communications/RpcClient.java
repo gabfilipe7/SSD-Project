@@ -96,7 +96,7 @@ public class RpcClient {
                     });
                 }
                 else{
-                    Reputation reputation = new Reputation(0,Instant.now());
+                    Reputation reputation = new Reputation(0.3,Instant.now());
                     localNode.reputationMap.put(peer.getId(),reputation);
                 }
 
@@ -321,7 +321,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
                             byte[] signature = rep.signReputation(this.localNode.getPrivateKey(), node.getId());
                             gossipReputation(rep, node.getId(), signature, localNode);
                         } else {
-                            Reputation newReputation = new Reputation(0, Instant.now());
+                            Reputation newReputation = new Reputation(0.3, Instant.now());
                             newReputation.generateId();
                             this.localNode.reputationMap.put(node.getId(), newReputation);
                         }
@@ -440,7 +440,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
         return blockMessage;
     }
 
-    public void gossipTransaction(Transaction transaction, byte[] signature, Node localNode, BigInteger senderNodeId) {
+    public void gossipTransaction(Transaction transaction, byte[] signature, BigInteger senderNodeId) {
         TransactionMessage transactionMessage;
 
         try {
@@ -457,7 +457,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
             System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
             return;
         }
-        
+        localNode.printAllNeighbours();
         for (Node neighbor : localNode.getAllNeighbours()) {
             if(senderNodeId!= null){
                 if(neighbor.getId().equals(senderNodeId)){
@@ -766,7 +766,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
                         KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
                         GossipResponse response = stub.withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                                .gossipTransaction(transactionMessage);
+                                .pay(transactionMessage);
 
                         if (response.getSuccess()) {
                             result.set(true);

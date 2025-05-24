@@ -64,7 +64,7 @@ public class Node {
             }
 
            if(port == 5000){
-                this.nodeId = new BigInteger("114463119885993250460859498894823303590894975338136063695510593414907458792199");
+               this.nodeId = new BigInteger("114463119885993250460859498894823303590894975338136063695510593414907458792199");
                 return;
             }
             if(port == 5001){
@@ -111,7 +111,7 @@ public class Node {
 
         Reputation rep = reputationMap.get(node.getId());
         if (rep == null) {
-            rep = new Reputation(0,Instant.now());
+            rep = new Reputation(0.3,Instant.now());
             rep.generateId();
             reputationMap.put(node.getId(), rep);
         }
@@ -134,6 +134,15 @@ public class Node {
         }
         return allNeighbours;
     }
+
+    public void printAllNeighbours() {
+        List<Node> allNeighbours = getAllNeighbours();
+        System.out.println("All Neighbours:");
+        for (Node node : allNeighbours) {
+            System.out.println("Node ID: " + node.getId());
+        }
+    }
+
     public boolean containsNode(BigInteger nodeId) {
         for (KBucket bucket : routingTable) {
             for (Node node : bucket.getNodes()) {

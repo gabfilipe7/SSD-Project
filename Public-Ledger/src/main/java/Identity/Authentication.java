@@ -1,6 +1,7 @@
 package Identity;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.*;
 
@@ -39,9 +40,36 @@ public class Authentication {
             PKCS8EncodedKeySpec privKeySpec = new PKCS8EncodedKeySpec(privBytes);
             PrivateKey privateKey = keyFactory.generatePrivate(privKeySpec);
 
-            return new KeyPair(publicKey, privateKey);
+            KeyPair result  = new KeyPair(publicKey, privateKey);
+
+            if(validateKeyPair(result)){
+                return new KeyPair(publicKey, privateKey);
+            }
+
+            return null;
         }
     }
+
+    public static boolean validateKeyPair(KeyPair keyPair) {
+
+        try{
+            byte[] message = "Validation message".getBytes(StandardCharsets.UTF_8);
+
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initSign(keyPair.getPrivate());
+            signature.update(message);
+            byte[] signedData = signature.sign();
+
+            signature.initVerify(keyPair.getPublic());
+            signature.update(message);
+            return signature.verify(signedData);
+
+        }
+        catch (Exception e){
+            return false;
+        }
+    }
+
 
     public static boolean keysExist() {
         return new File(KEY_FILE).exists();

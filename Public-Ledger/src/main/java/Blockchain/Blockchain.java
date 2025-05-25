@@ -46,6 +46,11 @@ public class Blockchain {
         this.chain.add(block);
     }
 
+    public void replaceBlockchain(List<Block> newBlockchain)
+    {
+        this.chain = newBlockchain;
+    }
+
 
     public boolean validateBlockChain(){
 
@@ -208,4 +213,15 @@ public class Blockchain {
         Block genesisBlock = new Block(0,hash,hash,timestamp,firstTransaction,0);
         this.chain.add(genesisBlock);
     }
+
+    public static boolean chainsAreEqual(List<Block> chain1, List<Block> chain2) {
+        if (chain1.size() != chain2.size()) return false;
+        for (int i = 0; i < chain1.size(); i++) {
+            if (!chain1.get(i).getBlockHash().equals(chain2.get(i).getBlockHash())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 }

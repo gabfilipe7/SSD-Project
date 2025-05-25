@@ -10,6 +10,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+
+import Blockchain.Blockchain;
+import Blockchain.Block;
+import Blockchain.Transaction;
 import Identity.Authentication;
 import Identity.Reputation;
 import Auction.Auction;
@@ -348,4 +352,24 @@ public class Node {
     public void updateBalance(double value) {
         this.balance = this.balance + value;
     }
+
+    public long calculateLocalNodeBalance(Blockchain blockchain) {
+        long balance = 100;
+
+        for (Block block : blockchain.getChain()) {
+            for (Transaction tx : block.getTransactions()) {
+
+                if (tx.getSender().equals(getPublicKey())) {
+                    balance -= tx.getAmount();
+                }
+
+                if (tx.getAuctionOwnerId().equals(nodeId)) {
+                    balance += tx.getAmount();
+                }
+            }
+        }
+        this.balance = balance;
+        return balance;
+    }
+
 }

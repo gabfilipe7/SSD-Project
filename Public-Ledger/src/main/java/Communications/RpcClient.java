@@ -568,7 +568,52 @@ public Optional<Set<String>> findValue(String key, int ttl) {
         return blocks;
     }
 
-   /* public List<AuctionMapEntry> getAuctionListFromNetwork() {
+    public void synchronizeBlockchain() {
+        Map<List<Block>, Integer> chainFrequency = new HashMap<>();
+
+        for (Node neighbor : localNode.getAllNeighbours()) {
+            try {
+                List<Block> receivedBlocks = requestBlocksFrom(neighbor, 0);
+
+                boolean found = false;
+                for (List<Block> chain : chainFrequency.keySet()) {
+                    if (Blockchain.chainsAreEqual(chain, receivedBlocks)) {
+                        chainFrequency.put(chain, chainFrequency.get(chain) + 1);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    chainFrequency.put(receivedBlocks, 1);
+                }
+
+            } catch (Exception e) {
+                System.err.println("Failed to get blocks from neighbor " + neighbor.getId() + ": " + e.getMessage());
+            }
+        }
+
+
+        List<Block> mostCommonChain = null;
+        int maxCount = 0;
+        for (Map.Entry<List<Block>, Integer> entry : chainFrequency.entrySet()) {
+            if (entry.getValue() > maxCount) {
+                maxCount = entry.getValue();
+                mostCommonChain = entry.getKey();
+            }
+        }
+
+        if (mostCommonChain != null && !mostCommonChain.isEmpty()) {
+            blockchain.replaceBlockchain(mostCommonChain);
+            System.out.println("Blockchain synchronized with the network!");
+        } else {
+            System.out.println("Could not synchronize blockchain: no common chain found.");
+        }
+    }
+
+
+
+    /* public List<AuctionMapEntry> getAuctionListFromNetwork() {
         String key = Utils.sha256("auction_index");
         Set<String> auctionEntries = new HashSet<>();
         List<AuctionMapEntry> result = new ArrayList<>();

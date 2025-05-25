@@ -84,7 +84,6 @@ public class Main {
         }
 
         this.localNode = new Node("127.0.0.1",port,20,isBootstrap,keys);
-        this.localNode.setIsMiner(true);
         this.localNode.setK(20);
         this.rpcServer = new RpcServer(localNode, blockchain);
         this.startGrpcServer();
@@ -101,6 +100,16 @@ public class Main {
 */
 
         this.connectToBootstrapNodes();
+
+        System.out.print("Would you like to contribute with your computer's resources to help mine new blocks for the blockchain? (yes/no): ");
+        String input = scanner.nextLine().trim().toLowerCase();
+
+        boolean permission = input.equals("yes") || input.equals("y");
+        this.localNode.setIsMiner(permission);
+
+        this.rpcClient.synchronizeBlockchain();
+        this.localNode.calculateLocalNodeBalance(blockchain);
+
         System.out.println("My id is " + localNode.getId().toString());
 
         while (true) {
@@ -293,7 +302,19 @@ public class Main {
         }
 
         System.out.print("Insert the value of the bid for the item " + auction.getItem() + ": ");
-        double bidValue = Integer.parseInt(scanner.nextLine());
+        double bidValue = 0;
+        while (true) {
+            bidValue = Integer.parseInt(scanner.nextLine());
+            if (bidValue <= 0) {
+                System.out.println("The bid value must be a positive number. Please try again:");
+                continue;
+            }
+            if (bidValue > localNode.getBalance()) {
+                System.out.println("Insufficient balance! Your current balance is " + localNode.getBalance() + ". Please enter a lower bid:");
+                continue;
+            }
+            break;
+        }
 
         Bid bid = new Bid(auction.getAuctionId(), this.localNode.getId(),bidValue, Instant.now());
         String bidJson = gson.toJson(bid);

@@ -84,13 +84,13 @@ public class Main {
         }
 
         this.localNode = new Node("127.0.0.1",port,20,isBootstrap,keys);
-        this.localNode.setK(20);
+        this.localNode.setK(2);
         this.rpcServer = new RpcServer(localNode, blockchain);
         this.startGrpcServer();
         this.rpcClient = new RpcClient(localNode, blockchain);
         this.rpcServer.rpcClient = this.rpcClient;
         this.blockchain.createGenesisBlock();
-        scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 5, TimeUnit.MINUTES);
+        scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 30, TimeUnit.SECONDS);
 
 
 /*
@@ -101,11 +101,11 @@ public class Main {
 
         this.connectToBootstrapNodes();
 
-        System.out.print("Would you like to contribute with your computer's resources to help mine new blocks for the blockchain? (yes/no): ");
-        String input = scanner.nextLine().trim().toLowerCase();
+       // System.out.print("Would you like to contribute with your computer's resources to help mine new blocks for the blockchain? (yes/no): ");
+      //  String input = scanner.nextLine().trim().toLowerCase();
 
-        boolean permission = input.equals("yes") || input.equals("y");
-        this.localNode.setIsMiner(permission);
+        //boolean permission = input.equals("yes") || input.equals("y");
+        this.localNode.setIsMiner(true);
 
         this.rpcClient.synchronizeBlockchain();
         this.localNode.calculateLocalNodeBalance(blockchain);

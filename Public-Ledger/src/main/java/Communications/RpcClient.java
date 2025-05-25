@@ -755,29 +755,24 @@ public Optional<Set<String>> findValue(String key, int ttl) {
 
     public void findNodeAndUpdateRoutingTable(BigInteger targetId) {
         final int MAX_NEW_NODES = 5;
-        int addedCount = 0;
 
-        List<Node> closest = this.localNode.findClosestNodes(targetId, 3);
+        findNode(targetId).thenAccept(nodesReturned -> {
+            int addedCount = 0;
 
-        for (Node candidate : closest) {
-            if (addedCount >= MAX_NEW_NODES) break;
+            for (Node newNode : nodesReturned) {
+                if (addedCount >= MAX_NEW_NODES) break;
 
-            try {
-                List<Node> nodesReturned = findNode(candidate, targetId);
-
-                for (Node newNode : nodesReturned) {
-                    if (addedCount >= MAX_NEW_NODES) break;
-                    if (!localNode.getId().equals(newNode.getId())
-                            && !localNode.containsNode(newNode.getId())) {
-                        localNode.addNode(newNode);
-                        addedCount++;
-                    }
+                if (!localNode.getId().equals(newNode.getId())
+                        && !localNode.containsNode(newNode.getId())) {
+                    localNode.addNode(newNode);
+                    addedCount++;
                 }
-
-            } catch (Exception e) {
-                System.err.println("Failed to contact node " + candidate.getId() + ": " + e.getMessage());
             }
-        }
+
+        }).exceptionally(ex -> {
+            System.err.println("Failed to refresh routing table for target " + targetId + ": " + ex.getMessage());
+            return null;
+        });
     }
 
     public CompletableFuture<Boolean> pay(Transaction transaction, byte[] signature) {

@@ -44,9 +44,9 @@ public class Node {
     public Node(String ipAddress, int port, int k, boolean isBootstrap, KeyPair keys) {
         this.ipAddress = ipAddress;
         this.port = port;
-        this.routingTable = new ArrayList<>(4);
-        for (int i = 0; i < 4; i++) {
-            this.routingTable.add(new KBucket(2));
+        this.routingTable = new ArrayList<>(256);
+        for (int i = 0; i < 256; i++) {
+            this.routingTable.add(new KBucket(20));
         }
         this.isBootstrap = isBootstrap;
 
@@ -83,9 +83,9 @@ public class Node {
     public Node(BigInteger nodeId, String ipAddress, int port, int k, boolean isBootstrap) {
         this.ipAddress = ipAddress;
         this.port = port;
-        this.routingTable = new ArrayList<>(4);
-        for (int i = 0; i < 4; i++) {
-            this.routingTable.add(new KBucket(2));
+        this.routingTable = new ArrayList<>(256);
+        for (int i = 0; i < 256; i++) {
+            this.routingTable.add(new KBucket(20));
         }
         this.isBootstrap = isBootstrap;
         this.keyPair = generateKeys();
@@ -105,7 +105,7 @@ public class Node {
     public int getTargetBucketIndex(BigInteger nodeID) {
         BigInteger distance = this.xorDistance(nodeID);
         int index = distance.bitLength() - 1;
-        return (index < 0) ? 0 : (index > 3) ? 3 : index;
+        return (index < 0) ? 0 : (index > 255) ? 255 : index;
     }
 
     public boolean addNode(Node node) {
@@ -238,6 +238,10 @@ public class Node {
         map.put(key, new HashSet<>(Set.of(value)));
     }
 
+    public void addKeyWithReplace(String key, Set<String> value) {
+        map.put(key, value);
+    }
+
     public Set<String> getValues(String key) {
         return map.getOrDefault(key, new HashSet<>());
     }
@@ -248,6 +252,7 @@ public class Node {
         }
         return false;
     }
+
 
     public Auction createAuction(String itemDescription, Instant startTime) {
         Auction newAuction = new Auction(UUID.randomUUID(), itemDescription, this.getId(), startTime);

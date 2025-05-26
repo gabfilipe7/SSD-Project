@@ -84,7 +84,7 @@ public class Main {
         }
 
         this.localNode = new Node("127.0.0.1",port,20,isBootstrap,keys);
-        this.localNode.setK(2);
+        this.localNode.setK(20);
         this.rpcServer = new RpcServer(localNode, blockchain);
         this.startGrpcServer();
         this.rpcClient = new RpcClient(localNode, blockchain);
@@ -192,10 +192,26 @@ public class Main {
                 rpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
             }
         });
+
+        String catalogKey = sha256("auction-global-catalog");
+        AuctionMapEntry entry = new AuctionMapEntry(newAuction.getAuctionId(),newAuction.getItem(),newAuction.getOwner());
+        String auctionEntryJson = gson.toJson(entry);
+        rpcClient.findNode(new BigInteger(catalogKey,16)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                StoreValue value = new StoreValue(StoreValue.Type.ADD_CATALOG,auctionEntryJson);
+                rpcClient.store(node.getIpAddress(),node.getPort(),catalogKey,gson.toJson(value));
+            }
+        });
     }
 
     private void listAuctions() {
-        List<Auction> auctions = new ArrayList<>(localNode.getAuctionsMap().values());
+
+        Set<String> values = rpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>()) ;
+        List<AuctionMapEntry> auctions = new ArrayList<>();
+
+        for (String auction : values) {
+            auctions.add(gson.fromJson(auction,AuctionMapEntry.class));
+        }
 
         if (auctions.isEmpty()) {
             System.out.println("There are no auctions to show.");
@@ -209,8 +225,8 @@ public class Main {
         System.out.println("---------------------------------------------------------------");
 
         int count = 0;
-        for (Auction auction : auctions) {
-            System.out.printf("%-5d | %-30s | %-36s%n", count, auction.getItem(), auction.getAuctionId());
+        for (AuctionMapEntry auction : auctions) {
+            System.out.printf("%-5d | %-30s | %-36s%n", count, auction.getItemName(), auction.getAuctionId());
             count++;
         }
 
@@ -267,6 +283,16 @@ public class Main {
                     }
                 }
             });
+        });
+
+        String catalogKey = sha256("auction-global-catalog");
+        AuctionMapEntry entry = new AuctionMapEntry(auction.getAuctionId(),auction.getItem(),auction.getOwner());
+        String auctionEntryJson = gson.toJson(entry);
+        rpcClient.findNode(new BigInteger(catalogKey,16)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                StoreValue value = new StoreValue(StoreValue.Type.REMOVE_CATALOG,auctionEntryJson);
+                rpcClient.store(node.getIpAddress(),node.getPort(),catalogKey,gson.toJson(value));
+            }
         });
 
     }

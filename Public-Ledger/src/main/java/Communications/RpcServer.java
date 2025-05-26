@@ -2,6 +2,7 @@ package Communications;
 
 import Auction.Auction;
 import Auction.Bid;
+import Auction.AuctionMapEntry;
 import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Identity.Reputation;
@@ -316,6 +317,14 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 case CLOSE:
                     System.out.println("Recieved auction closed.");
                     handleClose(key, value.getPayload());
+                    break;
+                case ADD_CATALOG:
+                    System.out.println("Recieved catalog add.");
+                    handleAddCatalog(key, value.getPayload());
+                    break;
+                case REMOVE_CATALOG:
+                    System.out.println("Recieved catalog remove.");
+                    handleRemoveCatalog(key, value.getPayload());
                     break;
             }
 
@@ -737,6 +746,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         rpcClient.PublishAuctionClose(key, payload);
     }
+
     public void handleAuction(String key, String payload, String srcNodeId){
         localNode.addKey(key,payload);
 
@@ -748,5 +758,32 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     }
     public void handleSubscription(String key, String payload){
         localNode.addKey(key,payload);
+    }
+
+    public void handleAddCatalog(String key, String payload){
+        localNode.addKey(key,payload);
+    }
+
+    public void handleRemoveCatalog(String key, String payload){
+        Set<String> entries = localNode.getValues(key);
+        if (entries == null || entries.isEmpty()) {
+            System.out.println("No entries found for key: " + key);
+            return;
+        }
+
+        AuctionMapEntry auction = gson.fromJson(payload, AuctionMapEntry.class);
+
+        String toRemove = null;
+        for (String entry : entries) {
+            if (entry.contains(auction.getAuctionId().toString())) {
+                toRemove = entry;
+                break;
+            }
+        }
+
+        if (toRemove != null) {
+            entries.remove(toRemove);
+            localNode.addKeyWithReplace(key, entries);
+        }
     }
 }

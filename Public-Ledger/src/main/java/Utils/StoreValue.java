@@ -6,7 +6,9 @@ public class StoreValue {
         AUCTION,
         SUBSCRIPTION,
         BID,
-        CLOSE
+        CLOSE,
+        ADD_CATALOG,
+        REMOVE_CATALOG
     }
 
     public StoreValue(Type type, String payload){

@@ -237,127 +237,177 @@ public class Main {
 
 
     private void closeAuction() {
-        System.out.print("Insert the Id of the auction you want to close: ");
+        Set<String> auctionList = rpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>()) ;
 
-        String auctionIdInput = this.scanner.nextLine();
 
-        String key = sha256("auction-info:" + UUID.fromString(auctionIdInput));
+        List<AuctionMapEntry> myAuctions = new ArrayList<>();
+        int index = 0;
+        for (String json : auctionList) {
+            AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
+            if (auction != null && auction.getOwnerNode().equals(localNode.getId())) {
+                System.out.println(index + ": " + auction.getAuctionId() + " | Item: " + auction.getItemName());
+                myAuctions.add(auction);
+                index++;
+            }
+        }
 
-        Set<String> auctionJson = localNode.getValues(key);
-
-        if (auctionJson == null || auctionJson.isEmpty()) {
-            System.out.print("No auction was found with that Id");
+        if (myAuctions.isEmpty()) {
+            System.out.println("No active auctions found that you can close.");
             return;
         }
 
-        Auction auction = gson.fromJson(auctionJson.iterator().next(),Auction.class);
+        System.out.print("Select the auction number you want to close (0-" + (myAuctions.size() - 1) + "): ");
+        int selection = -1;
+        while (true) {
+            try {
+                selection = Integer.parseInt(scanner.nextLine());
+                if (selection < 0 || selection >= myAuctions.size()) {
+                    System.out.println("Invalid selection. Please choose a valid auction number:");
+                } else {
+                    break;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number:");
+            }
+        }
 
 
-        if (auction == null) {
-            System.out.println("Auction not found.");
-            return;
-        }
-        if (!auction.getOwner().equals(localNode.getId())) {
-            System.out.println("You cannot close an auction that does not belong to you.");
-            return;
-        }
-        if (auction.isClosed()) {
-            System.out.println("Auction is already closed.");
+        String key = sha256("auction-info:" +  myAuctions.get(selection).getAuctionId());
+
+        Set<String> auction = rpcClient.findValue(key, 10).orElse(new HashSet<>());
+
+        if(auction.isEmpty()){
+            System.out.print("That auction is not available anymore.");
             return;
         }
 
-        auction.closeAuction();
-        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
-            for(Node node : nodes){
-                StoreValue value = new StoreValue(StoreValue.Type.CLOSE,auctionIdInput);
-                rpcClient.store(node.getIpAddress(),node.getPort(),"auction-close"+ UUID.fromString(auctionIdInput),gson.toJson(value));
+        String auctionJson = auction.iterator().next();
+
+        Auction selectedAuction = gson.fromJson(auctionJson, Auction.class);
+
+
+        selectedAuction.closeAuction();
+        System.out.println("Closing auction: " + selectedAuction.getAuctionId());
+
+        rpcClient.findNode(new BigInteger(key, 16)).thenAccept(nodes -> {
+            for (Node node : nodes) {
+                StoreValue value = new StoreValue(StoreValue.Type.CLOSE, selectedAuction.getAuctionId().toString());
+                rpcClient.store(node.getIpAddress(), node.getPort(), "auction-close" + selectedAuction.getAuctionId().toString(), gson.toJson(value));
             }
             System.out.println("Auction closed successfully.");
-            Bid winningBid = auction.getWinningBid().orElse(null);
 
-            assert winningBid != null;
-            rpcClient.findNode(winningBid.getBidder()).thenAccept(closeToWinner -> {
-                for(Node node : closeToWinner){
-                    if(node.getId().equals(winningBid.getBidder())){
-                        rpcClient.sendPaymentRequest(node, winningBid.getAmount(),winningBid.getAuctionId());
+            Bid winningBid = selectedAuction.getWinningBid().orElse(null);
+            if (winningBid != null) {
+                rpcClient.findNode(winningBid.getBidder()).thenAccept(closeToWinner -> {
+                    for (Node node : closeToWinner) {
+                        if (node.getId().equals(winningBid.getBidder())) {
+                            rpcClient.sendPaymentRequest(node, winningBid.getAmount(), winningBid.getAuctionId());
+                        }
                     }
-                }
-            });
-        });
-
-        String catalogKey = sha256("auction-global-catalog");
-        AuctionMapEntry entry = new AuctionMapEntry(auction.getAuctionId(),auction.getItem(),auction.getOwner());
-        String auctionEntryJson = gson.toJson(entry);
-        rpcClient.findNode(new BigInteger(catalogKey,16)).thenAccept(nodes -> {
-            for(Node node : nodes){
-                StoreValue value = new StoreValue(StoreValue.Type.REMOVE_CATALOG,auctionEntryJson);
-                rpcClient.store(node.getIpAddress(),node.getPort(),catalogKey,gson.toJson(value));
+                });
             }
         });
 
+        String globalCatalogKey = sha256("auction-global-catalog");
+        AuctionMapEntry entry = new AuctionMapEntry(selectedAuction.getAuctionId(), selectedAuction.getItem(), selectedAuction.getOwner());
+        String auctionEntryJson = gson.toJson(entry);
+        rpcClient.findNode(new BigInteger(globalCatalogKey, 16)).thenAccept(nodes -> {
+            for (Node node : nodes) {
+                StoreValue value = new StoreValue(StoreValue.Type.REMOVE_CATALOG, auctionEntryJson);
+                rpcClient.store(node.getIpAddress(), node.getPort(), globalCatalogKey, gson.toJson(value));
+            }
+        });
     }
 
+
     public void placeBid() {
+        Set<String> values = rpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>()) ;
 
-        System.out.print("Insert the Id of the auction you want to bid: ");
 
-        String auctionIdInput = this.scanner.nextLine();
+        if (values.isEmpty()) {
+            System.out.println("No auctions found.");
+            return;
+        }
 
-        String key = sha256("auction-info:" + auctionIdInput);
+        List<AuctionMapEntry> auctions = new ArrayList<>();
+        int index = 0;
+        for (String json : values) {
+            AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
+            if (auction != null) {
+                System.out.println(index + ": " + auction.getAuctionId() + " | Item: " + auction.getItemName() + " | Owner: " + auction.getOwnerNode());
+                auctions.add(auction);
+                index++;
+            }
+        }
 
-        Set<String> values = rpcClient.findValue(key, 10).orElse(new HashSet<>());
+        if (auctions.isEmpty()) {
+            System.out.println("No valid auctions found.");
+            return;
+        }
+
+        System.out.print("Select the auction number you want to bid on (0-" + (auctions.size() - 1) + "): ");
+        int selection = -1;
+        while (true) {
+            try {
+                selection = Integer.parseInt(scanner.nextLine());
+                if (selection < 0 || selection >= auctions.size()) {
+                    System.out.println("Invalid selection. Please choose a valid auction number:");
+                } else {
+                    break;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number:");
+            }
+        }
+
+        String key = sha256("auction-info:" +  auctions.get(selection).getAuctionId());
+
+        Set<String> auction = rpcClient.findValue(key, 10).orElse(new HashSet<>());
 
         if(values.isEmpty()){
-            System.out.print("No auction was found with that Id");
+            System.out.print("That auction is not available anymore.");
             return;
         }
 
-        String auctionJson = values.iterator().next();
+        String auctionJson = auction.iterator().next();
 
-        Auction auction = gson.fromJson(auctionJson, Auction.class);
+        Auction selectedAuction = gson.fromJson(auctionJson, Auction.class);
 
-
-        if (auction == null) {
-            System.out.println("Auction not found.");
-            return;
-        }
-
-        if (auction.isClosed()) {
+        if (selectedAuction.isClosed()) {
             System.out.println("Auction is already closed.");
             return;
         }
 
-        System.out.print("Insert the value of the bid for the item " + auction.getItem() + ": ");
+        System.out.print("Insert the value of the bid for the item " + selectedAuction.getItem() + ": ");
         double bidValue = 0;
         while (true) {
-            bidValue = Integer.parseInt(scanner.nextLine());
-            if (bidValue <= 0) {
-                System.out.println("The bid value must be a positive number. Please try again:");
-                continue;
+            try {
+                bidValue = Double.parseDouble(scanner.nextLine());
+                if (bidValue <= 0) {
+                    System.out.println("The bid value must be a positive number. Please try again:");
+                } else if (bidValue > localNode.getBalance()) {
+                    System.out.println("Insufficient balance! Your current balance is " + localNode.getBalance() + ". Please enter a lower bid:");
+                } else {
+                    break;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number:");
             }
-            if (bidValue > localNode.getBalance()) {
-                System.out.println("Insufficient balance! Your current balance is " + localNode.getBalance() + ". Please enter a lower bid:");
-                continue;
-            }
-            break;
         }
 
-        Bid bid = new Bid(auction.getAuctionId(), this.localNode.getId(),bidValue, Instant.now());
+        Bid bid = new Bid(selectedAuction.getAuctionId(), this.localNode.getId(), bidValue, Instant.now());
         String bidJson = gson.toJson(bid);
+        String storeKey = sha256("bid:" + selectedAuction.getAuctionId());
+        System.out.println("Chave Bid: " + storeKey);
 
-        String storeKey = sha256("bid:" + auction.getAuctionId());
-        System.out.println("Chave Bid:" + storeKey);
-
-        localNode.addKey(storeKey,bidJson);
-        rpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
-            for(Node node : nodes){
-                System.out.println(node.getId());
-                StoreValue value = new StoreValue(StoreValue.Type.BID,bidJson);
-                rpcClient.store(node.getIpAddress(),node.getPort(),storeKey,gson.toJson(value));
+        localNode.addKey(storeKey, bidJson);
+        rpcClient.findNode(new BigInteger(sha256("auction-info:" + selectedAuction.getAuctionId()), 16)).thenAccept(nodes -> {
+            for (Node node : nodes) {
+                StoreValue value = new StoreValue(StoreValue.Type.BID, bidJson);
+                rpcClient.store(node.getIpAddress(), node.getPort(), storeKey, gson.toJson(value));
             }
             System.out.println("Bid placed successfully.");
         });
-
     }
 
     private void connectToBootstrapNodes() {

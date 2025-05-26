@@ -269,6 +269,9 @@ public Optional<Set<String>> findValue(String key, int ttl) {
     PriorityQueue<Node> queue = new PriorityQueue<>(Comparator.comparing(n -> xorDistance(key, n.getId())));
 
     List<Node> initialNodes = localNode.findClosestNodes(new BigInteger(key,16),localNode.getK());
+    if(initialNodes==null){
+        return Optional.of(new HashSet<>());
+    }
     queue.addAll(initialNodes);
     initialNodes.forEach(n -> closestNodes.put(n.getId(), n));
 

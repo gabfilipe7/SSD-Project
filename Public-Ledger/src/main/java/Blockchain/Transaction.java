@@ -12,7 +12,8 @@ import java.util.UUID;
 public class Transaction {
 
     public enum TransactionType {
-        AuctionPayment
+        AuctionPayment,
+        BlockMinedPayment
     }
 
     private UUID TransactionId;

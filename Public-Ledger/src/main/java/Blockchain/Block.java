@@ -74,6 +74,10 @@ public class Block {
         }
     }
 
+    public void addTransaction(Transaction tr) {
+        this.Transactions.add(tr);
+    }
+
     public long getTimestamp() {
         return Timestamp;
     }

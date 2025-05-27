@@ -352,7 +352,7 @@ public class RpcClient {
         return foundValues.isEmpty() ? Optional.empty() : Optional.of(foundValues);
     }
 
-    public void gossipBlock(Block block, Node localNode) {
+    public void gossipBlock(Block block) {
         BlockMessage blockMessage;
 
         try {
@@ -375,7 +375,7 @@ public class RpcClient {
 
             blockMessage = BlockMessage.newBuilder()
                     .setBlockData(protoBlock)
-                    .setSenderId(localNode.getId().toString())
+                    .setSenderId(LocalNode.getId().toString())
                     .build();
 
         } catch (Exception e) {
@@ -383,7 +383,7 @@ public class RpcClient {
             return;
         }
 
-        for (Node neighbor : localNode.getAllNeighbours()) {
+        for (Node neighbor : LocalNode.getAllNeighbours()) {
             ManagedChannel channel = null;
             try {
                 channel = ManagedChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())

@@ -237,7 +237,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     });
 
                     Blockchain.addNewBlock(block);
-                    RpcClient.gossipBlock(block,this.LocalNode);
+                    RpcClient.gossipBlock(block);
                 }
                 else if (!Blockchain.contains(receivedBlock.getBlockId() - 1)) {
                     stopMining();
@@ -662,12 +662,20 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     public void startMining(Block blockToMine) {
     IsMining = true;
+
+    Transaction transaction = new Transaction(Transaction.TransactionType.BlockMinedPayment,LocalNode.getPublicKey(),null,10.0 );
+    transaction.signTransaction(LocalNode.getPrivateKey());
+
+    blockToMine.addTransaction(transaction);
+
     this.CurrentBlockMining = blockToMine;
     MiningThread = new Thread(() -> {
         blockToMine.mine(() -> IsMining);
         if (IsMining && Blockchain.verifyBlock(blockToMine) == 1) {
+            RpcClient.gossipBlock(blockToMine);
             this.Blockchain.addNewBlock(blockToMine);
-            RpcClient.gossipBlock(blockToMine, LocalNode);
+            LocalNode.updateBalance(10);
+
             IsMining = false;
             CurrentBlockMining = null;
         }

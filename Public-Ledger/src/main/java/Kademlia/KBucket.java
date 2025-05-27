@@ -23,10 +23,20 @@ public class KBucket {
             return true;
         } else {
             this.Nodes.remove(size - 1);
-            this.Nodes.add(0, node);
+            this.Nodes.add( node);
             return false;
         }
     }
+
+    public synchronized Node getLeastRecentlySeenNode() {
+        if (Nodes.isEmpty()) return null;
+        return Nodes.get(0);
+    }
+
+    public synchronized void removeNode(Node node) {
+        Nodes.remove(node);
+    }
+
     public List<Node> getNodes() {
         return this.Nodes;
     }

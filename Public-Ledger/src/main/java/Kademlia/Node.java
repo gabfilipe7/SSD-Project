@@ -358,6 +358,10 @@ public class Node {
         this.balance = this.balance + value;
     }
 
+    public ArrayList<KBucket>  getRoutingTable(){
+        return routingTable;
+    }
+
     public long calculateLocalNodeBalance(Blockchain blockchain) {
         long balance = 100;
 

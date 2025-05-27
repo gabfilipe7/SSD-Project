@@ -7,6 +7,7 @@ import Blockchain.Blockchain;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Identity.Reputation;
+import Kademlia.KBucket;
 import Kademlia.Node;
 import Identity.Authentication;
 import Utils.InstantAdapter;
@@ -91,6 +92,7 @@ public class Main {
         this.rpcServer.rpcClient = this.rpcClient;
         this.blockchain.createGenesisBlock();
         scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 30, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(() -> pingBuckets(), 0, 30, TimeUnit.SECONDS);
 
 
 /*
@@ -420,7 +422,7 @@ public class Main {
             if(!bootstrap.getId().equals(localNode.getId()))
             {
                 System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-                boolean connected = rpcClient.ping(bootstrap,localNode);
+                boolean connected = rpcClient.ping(bootstrap);
                 Reputation reputation = new Reputation(0.7,Instant.now());
                 reputation.generateId();
                 localNode.reputationMap.put(bootstrap.getId(),reputation);
@@ -515,6 +517,25 @@ public class Main {
         scanner.nextLine();
     }
 
+    public void pingBuckets() {
+        for (KBucket bucket : localNode.getRoutingTable()) {
+            Node node = bucket.getLeastRecentlySeenNode();
+            if (node != null) {
+                boolean alive = rpcClient.ping(node);
+                if (!alive) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    alive = rpcClient.ping(node);
+                    if (!alive) {
+                        bucket.removeNode(node);
+                    }
+                }
+            }
+        }
+    }
 
 
 }

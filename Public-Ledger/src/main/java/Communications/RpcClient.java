@@ -56,7 +56,7 @@ public class RpcClient {
         this.stub = KademliaServiceGrpc.newBlockingStub(channel);
     }
 
-    public boolean ping(Node peer, Node localNode) {
+    public boolean ping(Node peer) {
         ManagedChannel channel = null;
         try {
             channel = ManagedChannelBuilder

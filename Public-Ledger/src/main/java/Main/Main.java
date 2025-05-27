@@ -443,7 +443,7 @@ public class Main {
 
 
     }
-
+/*
     private void subscribeAuction(){
         System.out.println("Insert the Id of the auction you wish to subscribe: ");
         String auctionIdInput = this.Scanner.nextLine();
@@ -454,6 +454,55 @@ public class Main {
                 StoreValue value = new StoreValue(StoreValue.Type.SUBSCRIPTION ,LocalNode.getId().toString());
                 RpcClient.store(node.getIpAddress(),node.getPort(),subscribeKey,gson.toJson(value));
             }
+        });
+    }*/
+
+    private void subscribeAuction() {
+        Set<String> auctionList = RpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>());
+
+        List<AuctionMapEntry> auctions = new ArrayList<>();
+        int index = 0;
+        for (String json : auctionList) {
+            AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
+            if (auction != null) {
+                System.out.println(index + ": " + auction.getAuctionId() + " | Item: " + auction.getItemName());
+                auctions.add(auction);
+                index++;
+            }
+        }
+
+        if (auctions.isEmpty()) {
+            System.out.println("No active auctions available to subscribe to.");
+            return;
+        }
+
+        System.out.print("Select the auction number you want to subscribe to (0-" + (auctions.size() - 1) + "): ");
+        int selection = -1;
+        while (true) {
+            try {
+                selection = Integer.parseInt(Scanner.nextLine());
+                if (selection < 0 || selection >= auctions.size()) {
+                    System.out.println("Invalid selection. Please choose a valid auction number:");
+                } else {
+                    break;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number:");
+            }
+        }
+
+        AuctionMapEntry selectedAuction = auctions.get(selection);
+        String auctionIdInput = String.valueOf(selectedAuction.getAuctionId());
+        String subscribeKey = sha256("auction-subs:" + auctionIdInput);
+        String auctionKey = sha256("auction-info:" + auctionIdInput);
+
+        RpcClient.findNode(new BigInteger(auctionKey,16)).thenAccept(nodes -> {
+            for(Node node : nodes){
+                StoreValue value = new StoreValue(StoreValue.Type.SUBSCRIPTION, LocalNode.getId().toString());
+                RpcClient.store(node.getIpAddress(), node.getPort(), subscribeKey, gson.toJson(value));
+            }
+            RpcServer.SubscribedAuctions.add(selectedAuction.getAuctionId());
+            System.out.println("Subscribed to auction: " + auctionIdInput + " (Item: " + selectedAuction.getItemName() + ")");
         });
     }
 

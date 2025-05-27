@@ -35,6 +35,7 @@ import static java.lang.Math.min;
 public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     public static RpcClient RpcClient;
+    public Set<UUID> SubscribedAuctions = new HashSet<>();
     private final Node LocalNode;
     private final Blockchain Blockchain;
     private final int MaxTransactionsPerBlock;
@@ -728,6 +729,10 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
         RpcClient.publishAuctionBid(bid.getAuctionId(), key, payload);
+
+        if(SubscribedAuctions.contains(bid.getAuctionId())){
+            System.out.println("Someone placed a bid of " + bid.getAmount() + " on auction '" + bid.getAuctionId() + "'.");
+        }
     }
 
     public void handleClose(String key, String payload) {

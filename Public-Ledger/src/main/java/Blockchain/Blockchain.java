@@ -1,87 +1,24 @@
 package Blockchain;
 
-import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Blockchain {
 
-    private List<Block> chain;
-    private final Map<UUID, Transaction> mempool = new ConcurrentHashMap<>();
+    private List<Block> Chain;
+    private final Map<UUID, Transaction> Mempool = new ConcurrentHashMap<>();
 
     public Blockchain() {
-        chain = new ArrayList<>();
+        Chain = new ArrayList<>();
     }
 
-    public Blockchain(List<Block> Chain) {
-        this.chain = Chain;
+    public Block getLastBlock(){
+        int lastBlockIndex = this.Chain.size() - 1;
+        return this.Chain.get(lastBlockIndex);
     }
 
-
-  /*  public void AddNewBlock(List<Transaction> transactions) {
-
-        Block lastBlock = this.GetLastBlock();
-
-        int blockIndex = this.chain.size();
-        Block newBlock = new Block(blockIndex, lastBlock.getBlockHash(), transactions);
-
-        newBlock.mine();
-
-        this.chain.add(newBlock);
-    }*/
-
-  public boolean isTransactionInBlockchain(UUID targetTransactionId) {
-
-      for (Block block : this.chain) {
-          for (Transaction transaction : block.getTransactions()) {
-              if (transaction.getTransactionId().equals(targetTransactionId)) {
-                  return true;
-              }
-          }
-      }
-      return false;
-  }
-
-    public void AddNewBlock(Block block) {
-        this.chain.add(block);
-    }
-
-    public void replaceBlockchain(List<Block> newBlockchain)
-    {
-        this.chain = newBlockchain;
-    }
-
-
-    public boolean validateBlockChain(){
-
-        for(int i = 1; i < chain.size(); i++){
-            Block previousBlock = this.chain.get(i-1);
-            Block presentBlock = this.chain.get(i);
-
-            String presentBlockHash = presentBlock.getBlockHash();
-
-            if (!Objects.equals(presentBlock.CalculateBlockHash(), presentBlockHash)) {
-                return false;
-            }
-            if (!presentBlockHash.startsWith("0".repeat(presentBlock.getDifficulty()))) {
-                return false;
-            }
-            if (!Objects.equals(previousBlock.getBlockHash(), presentBlock.getPreviousBlockHash())) {
-                return false;
-            }
-
-
-        }
-        return true;
-    }
-
-    public Block GetLastBlock(){
-        int lastBlockIndex = this.chain.size() - 1;
-        return this.chain.get(lastBlockIndex);
-    }
-
-    public boolean Contains(long blockId) {
-        for (Block block : this.chain) {
+    public boolean contains(long blockId) {
+        for (Block block : this.Chain) {
             if (block.getIndex() == (blockId)) {
                 return true;
             }
@@ -91,7 +28,7 @@ public class Blockchain {
 
     public double verifyBlock(Block block) {
 
-        Block lastBlock = GetLastBlock();
+        Block lastBlock = getLastBlock();
         if (!block.getPreviousBlockHash().equals(lastBlock.getBlockHash())) {
             return 0.05;
         }
@@ -102,7 +39,7 @@ public class Blockchain {
             }
         }
 
-        String computedHash = block.CalculateBlockHash();
+        String computedHash = block.calculateBlockHash();
         if (!computedHash.equals(block.getBlockHash())) {
             return 0.2;
         }
@@ -116,7 +53,7 @@ public class Blockchain {
 
     public List<Block> getBlocksFrom(long startIndex) {
         List<Block> result = new ArrayList<>();
-        for (Block block : this.chain) {
+        for (Block block : this.Chain) {
             if (block.getIndex() >= startIndex) {
                 result.add(block);
             }
@@ -124,46 +61,9 @@ public class Blockchain {
         return result;
     }
 
-    public List<Block> getChain() {
-        return this.chain;
-    }
-
-    public synchronized void replaceFromIndex(long startIndex, List<Block> newBlocks) {
-        try{
-            if (startIndex < 0 || startIndex > chain.size()) {
-                throw new IllegalArgumentException("Invalid start index");
-            }
-
-            while (chain.size() > startIndex) {
-                chain.remove(chain.size() - 1);
-            }
-
-            chain.addAll(newBlocks);
-
-        }catch(Exception ex){
-            return;
-        }
-    }
-
-    public void addTransactionToMempool(UUID key, Transaction transaction){
-        mempool.put(key, transaction);
-    }
-
-    public boolean containsTransaction(UUID key){
-        return mempool.containsKey(key);
-    }
-
-    public int getMempoolSize(){
-        return mempool.size();
-    }
-
-    public Collection <Transaction> getMempoolValues() {
-        return mempool.values();
-    }
-
     public void printMempoolValues() {
 
-      for(Transaction tr : mempool.values()){
+      for(Transaction tr : Mempool.values()){
           System.out.println(tr.toString());
       }
     }
@@ -175,8 +75,8 @@ public class Blockchain {
         String blockConnector = "                ║";
         String arrow = "                                    ║\n                                    ║";
 
-        for (int i = 0; i < chain.size(); i++) {
-            Block block = chain.get(i);
+        for (int i = 0; i < Chain.size(); i++) {
+            Block block = Chain.get(i);
 
             sb.append(blockTop).append("\n");
             sb.append("║ Block #").append(String.format("%-63s", block.getIndex())).append("  ║\n");
@@ -192,7 +92,7 @@ public class Blockchain {
 
             sb.append(blockBottom).append("\n");
 
-            if (i < chain.size() - 1) {
+            if (i < Chain.size() - 1) {
                 sb.append(arrow).append("\n");
             }
         }
@@ -200,18 +100,12 @@ public class Blockchain {
         System.out.println(sb.toString());
     }
 
-
-
-    public void clearMempool() {
-        mempool.clear();
-    }
-
     public void createGenesisBlock() {
         String hash = "0000000000000000000000000000000000000000000000000000000000000000";
         long timestamp = System.currentTimeMillis();
         List<Transaction> firstTransaction = new ArrayList<>();
         Block genesisBlock = new Block(0,hash,hash,timestamp,firstTransaction,0);
-        this.chain.add(genesisBlock);
+        this.Chain.add(genesisBlock);
     }
 
     public static boolean chainsAreEqual(List<Block> chain1, List<Block> chain2) {
@@ -222,6 +116,39 @@ public class Blockchain {
             }
         }
         return true;
+    }
+
+    public void addNewBlock(Block block) {
+        this.Chain.add(block);
+    }
+
+    public void replaceBlockchain(List<Block> newBlockchain)
+    {
+        this.Chain = newBlockchain;
+    }
+
+    public void clearMempool() {
+        Mempool.clear();
+    }
+
+    public List<Block> getChain() {
+        return this.Chain;
+    }
+
+    public void addTransactionToMempool(UUID key, Transaction transaction){
+        Mempool.put(key, transaction);
+    }
+
+    public boolean containsTransaction(UUID key){
+        return Mempool.containsKey(key);
+    }
+
+    public int getMempoolSize(){
+        return Mempool.size();
+    }
+
+    public Collection <Transaction> getMempoolValues() {
+        return Mempool.values();
     }
 
 }

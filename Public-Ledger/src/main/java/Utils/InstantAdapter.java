@@ -12,7 +12,7 @@ public class InstantAdapter extends TypeAdapter<Instant> {
     @Override
     public void write(JsonWriter out, Instant value) throws IOException {
         if (value == null) {
-            out.nullValue(); // Handle null properly
+            out.nullValue();
         } else {
             out.value(value.toString());
         }
@@ -21,7 +21,7 @@ public class InstantAdapter extends TypeAdapter<Instant> {
     @Override
     public Instant read(JsonReader in) throws IOException {
         if (in.peek() == JsonToken.NULL) {
-            in.nextNull(); // Consume the null token
+            in.nextNull();
             return null;
         }
         return Instant.parse(in.nextString());

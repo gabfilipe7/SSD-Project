@@ -1,10 +1,9 @@
 package Blockchain;
-import java.util.ArrayList;
+
 import java.util.Date;
 import java.util.List;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.util.function.BooleanSupplier;
 
@@ -26,7 +25,6 @@ public class Block {
         this.Index = index;
     }
 
-
     public Block(long index,
                  String blockHash,
                  String previousBlockHash,
@@ -41,7 +39,7 @@ public class Block {
         this.Nonce = nonce;
     }
 
-    public String CalculateBlockHash(){
+    public String calculateBlockHash(){
         try{
             String content = this.PreviousBlockHash + this.Index + this.Nonce + this.Timestamp + this.Transactions;
 
@@ -66,7 +64,7 @@ public class Block {
     public void mine(BooleanSupplier shouldContinueMining){
         String pattern = "0".repeat(this.Difficulty);
         while (shouldContinueMining.getAsBoolean()) {
-            String hash = this.CalculateBlockHash();
+            String hash = this.calculateBlockHash();
             if (hash.startsWith(pattern)) {
                 System.out.println("YOU MINED THE BLOCK YEYY!! :D");
                 this.BlockHash = hash;
@@ -75,8 +73,6 @@ public class Block {
             this.Nonce++;
         }
     }
-
-
 
     public long getTimestamp() {
         return Timestamp;
@@ -88,10 +84,6 @@ public class Block {
 
     public String getBlockHash() {
         return BlockHash;
-    }
-
-    public void setBlockHash(String hash) {
-        this.BlockHash = hash;
     }
 
     public int getDifficulty() {
@@ -109,4 +101,5 @@ public class Block {
     public List<Transaction> getTransactions() {
         return Transactions;
     }
+
 }

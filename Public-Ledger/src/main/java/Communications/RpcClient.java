@@ -15,29 +15,24 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import Kademlia.Node;
 import io.grpc.StatusRuntimeException;
-
 import java.security.PublicKey;
 import java.time.Instant;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import Blockchain.Block;
 import java.math.BigInteger;
 import java.util.*;
-
 import static Utils.Utils.sha256;
 import static java.lang.Math.min;
 
 public class RpcClient {
 
     private static final long TIMEOUT_SECONDS = 10 ;
-    private final ManagedChannel channel;
-    private final KademliaServiceGrpc.KademliaServiceBlockingStub stub;
-    private ExecutorService executorService;
-    private final Node localNode;
-    private final Blockchain blockchain;
-
+    private final ManagedChannel Channel;
+    private ExecutorService ExecutorService;
+    private final Node LocalNode;
+    private final Blockchain Blockchain;
 
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
@@ -45,15 +40,13 @@ public class RpcClient {
             .create();
 
     public RpcClient(Node localNode,Blockchain blockchain) {
-        this.localNode = localNode;
-        this.blockchain = blockchain;
-        this.channel = ManagedChannelBuilder
+        this.LocalNode = localNode;
+        this.Blockchain = blockchain;
+        this.Channel = ManagedChannelBuilder
                 .forAddress(localNode.getIpAddress(), localNode.getPort())
                 .usePlaintext()
                 .build();
-        this.executorService = Executors.newFixedThreadPool(10);
-
-        this.stub = KademliaServiceGrpc.newBlockingStub(channel);
+        this.ExecutorService = Executors.newFixedThreadPool(10);
     }
 
     public boolean ping(Node peer) {
@@ -64,13 +57,12 @@ public class RpcClient {
                     .usePlaintext()
                     .build();
 
-
             KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
             NodeInfo nodeInfo = NodeInfo.newBuilder()
-                    .setId(localNode.getId().toString())
-                    .setIp(localNode.getIpAddress())
-                    .setPort(localNode.getPort())
+                    .setId(LocalNode.getId().toString())
+                    .setIp(LocalNode.getIpAddress())
+                    .setPort(LocalNode.getPort())
                     .build();
 
 
@@ -82,23 +74,22 @@ public class RpcClient {
 
             if(response.getIsAlive()){
 
-                Reputation rep = localNode.reputationMap.get(peer.getId());
+                Reputation rep = LocalNode.ReputationMap.get(peer.getId());
 
                 if(rep != null){
                     double newScore = min(rep.getScore() + 0.005,1);
                     rep.setScore(newScore);
                     rep.setLastUpdated(Instant.now());
-                    localNode.reputationMap.put(peer.getId(),rep);
+                    LocalNode.ReputationMap.put(peer.getId(),rep);
 
-                    byte[] signature = rep.signReputation(localNode.getPrivateKey(),peer.getId());
+                    byte[] signature = rep.signReputation(LocalNode.getPrivateKey(),peer.getId());
                     CompletableFuture.runAsync(() -> {
-                        System.out.println("BATATAS3");
-                        gossipReputation(rep, peer.getId(), signature, localNode);
+                        gossipReputation(rep, peer.getId(), signature, LocalNode);
                     });
                 }
                 else{
                     Reputation reputation = new Reputation(0.3,Instant.now());
-                    localNode.reputationMap.put(peer.getId(),reputation);
+                    LocalNode.ReputationMap.put(peer.getId(),reputation);
                 }
 
                 return true;
@@ -109,7 +100,6 @@ public class RpcClient {
 
 
         } catch (Exception e) {
-        // System.err.println("Ping failed to " + peer.getId() + ": " + e.getMessage());
             return false;
         } finally {
             if (channel != null) {
@@ -119,7 +109,7 @@ public class RpcClient {
     }
 
     public CompletableFuture<List<Node>> findNode(BigInteger targetId) {
-        List<Node> initialPeers = this.localNode.findClosestNodes(targetId, 3);
+        List<Node> initialPeers = this.LocalNode.findClosestNodes(targetId, 3);
         if (initialPeers == null) {
             initialPeers = new ArrayList<>();
         }
@@ -162,7 +152,7 @@ public class RpcClient {
                     } catch (Exception e) {
                         return List.of();
                     }
-                }, executorService));
+                }, ExecutorService));
             }
         }
 
@@ -213,22 +203,16 @@ public class RpcClient {
                         nodeInfo.getIp(),
                         nodeInfo.getPort()
                 ))
-                .filter(node -> !node.getId().equals(localNode.getId()))
+                .filter(node -> !node.getId().equals(LocalNode.getId()))
                 .collect(Collectors.toList());
 
         for(Node node : nodes){
-            if(!localNode.containsNode(node.getId()) && !node.getId().equals(localNode.getId())){
-                localNode.addNode(node);
+            if(!LocalNode.containsNode(node.getId()) && !node.getId().equals(LocalNode.getId())){
+                LocalNode.addNode(node);
             }
         }
 
         return nodes;
-    }
-
-    public void shutdown() {
-        if (channel != null && !channel.isShutdown()) {
-            channel.shutdown();
-        }
     }
 
     public boolean store(String ip, int port, String key, String value) {
@@ -243,7 +227,7 @@ public class RpcClient {
             StoreRequest request = StoreRequest.newBuilder()
                     .setKey(key)
                     .setValue(value)
-                    .setSrc(localNode.getId().toString())
+                    .setSrc(LocalNode.getId().toString())
                     .build();
 
             StoreResponse response = stub.store(request);
@@ -261,123 +245,114 @@ public class RpcClient {
             }
         }
     }
-public Optional<Set<String>> findValue(String key, int ttl) {
-    int alpha = 3;
 
-    Set<String> visitedNodeIds = new HashSet<>();
-    Map<BigInteger, Node> closestNodes = new HashMap<>();
-    PriorityQueue<Node> queue = new PriorityQueue<>(Comparator.comparing(n -> xorDistance(key, n.getId())));
+    public Optional<Set<String>> findValue(String key, int ttl) {
+        int alpha = 3;
 
-    List<Node> initialNodes = localNode.findClosestNodes(new BigInteger(key,16),localNode.getK());
-    if(initialNodes==null){
-        return Optional.of(new HashSet<>());
-    }
-    queue.addAll(initialNodes);
-    initialNodes.forEach(n -> closestNodes.put(n.getId(), n));
+        Set<String> visitedNodeIds = new HashSet<>();
+        Map<BigInteger, Node> closestNodes = new HashMap<>();
+        PriorityQueue<Node> queue = new PriorityQueue<>(Comparator.comparing(n -> Utils.xorDistance(key, n.getId())));
 
-    Set<String> foundValues = new HashSet<>();
-    AtomicReference<Boolean> valueFound = new AtomicReference<Boolean>();
-    valueFound.set(false);
-
-    while (!queue.isEmpty() && ttl-- > 0) {
-        List<Node> alphaNodes = new ArrayList<>();
-
-        while (!queue.isEmpty() && alphaNodes.size() < alpha) {
-            Node n = queue.poll();
-            if (!visitedNodeIds.contains(n.getId().toString())) {
-                alphaNodes.add(n);
-                visitedNodeIds.add(n.getId().toString());
-            }
+        List<Node> initialNodes = LocalNode.findClosestNodes(new BigInteger(key,16),LocalNode.getK());
+        if(initialNodes==null){
+            return Optional.of(new HashSet<>());
         }
+        queue.addAll(initialNodes);
+        initialNodes.forEach(n -> closestNodes.put(n.getId(), n));
 
-        if (alphaNodes.isEmpty()) break;
+        Set<String> foundValues = new HashSet<>();
+        AtomicReference<Boolean> valueFound = new AtomicReference<Boolean>();
+        valueFound.set(false);
 
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        while (!queue.isEmpty() && ttl-- > 0) {
+            List<Node> alphaNodes = new ArrayList<>();
 
-        for (Node node : alphaNodes) {
-            futures.add(CompletableFuture.runAsync(() -> {
-                ManagedChannel channel = null;
-                try {
-                    channel = ManagedChannelBuilder
-                            .forAddress(node.getIpAddress(), node.getPort())
-                            .usePlaintext()
-                            .build();
+            while (!queue.isEmpty() && alphaNodes.size() < alpha) {
+                Node n = queue.poll();
+                if (!visitedNodeIds.contains(n.getId().toString())) {
+                    alphaNodes.add(n);
+                    visitedNodeIds.add(n.getId().toString());
+                }
+            }
 
-                    KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
+            if (alphaNodes.isEmpty()) break;
 
-                    FindValueRequest request = FindValueRequest.newBuilder()
-                            .setKey(key)
-                            .build();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-                    FindValueResponse response = stub.findValue(request);
+            for (Node node : alphaNodes) {
+                futures.add(CompletableFuture.runAsync(() -> {
+                    ManagedChannel channel = null;
+                    try {
+                        channel = ManagedChannelBuilder
+                                .forAddress(node.getIpAddress(), node.getPort())
+                                .usePlaintext()
+                                .build();
 
-                    if (response.getFound()) {
-                        foundValues.addAll(response.getValueList());
+                        KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
-                        // Update reputation
-                        Reputation rep = this.localNode.reputationMap.get(node.getId());
-                        if (rep != null) {
-                            double newScore = min(rep.getScore() + 0.01,1);
-                            rep.setScore(newScore);
-                            rep.setLastUpdated(Instant.now());
-                            this.localNode.reputationMap.put(node.getId(), rep);
+                        FindValueRequest request = FindValueRequest.newBuilder()
+                                .setKey(key)
+                                .build();
 
-                            byte[] signature = rep.signReputation(this.localNode.getPrivateKey(), node.getId());
-                            gossipReputation(rep, node.getId(), signature, localNode);
+                        FindValueResponse response = stub.findValue(request);
+
+                        if (response.getFound()) {
+                            foundValues.addAll(response.getValueList());
+
+                            Reputation rep = this.LocalNode.ReputationMap.get(node.getId());
+                            if (rep != null) {
+                                double newScore = min(rep.getScore() + 0.01,1);
+                                rep.setScore(newScore);
+                                rep.setLastUpdated(Instant.now());
+                                this.LocalNode.ReputationMap.put(node.getId(), rep);
+
+                                byte[] signature = rep.signReputation(this.LocalNode.getPrivateKey(), node.getId());
+                                gossipReputation(rep, node.getId(), signature, LocalNode);
+                            } else {
+                                Reputation newReputation = new Reputation(0.3, Instant.now());
+                                newReputation.generateId();
+                                this.LocalNode.ReputationMap.put(node.getId(), newReputation);
+                            }
+                            valueFound.set(true);
                         } else {
-                            Reputation newReputation = new Reputation(0.3, Instant.now());
-                            newReputation.generateId();
-                            this.localNode.reputationMap.put(node.getId(), newReputation);
-                        }
-                        valueFound.set(true);
-                    } else {
-                        // Merge returned nodes into queue
-                        for (NodeInfo nodeInfo : response.getNodesList()) {
-                            Node newNode = new Node(
-                                    new BigInteger(nodeInfo.getId()),
-                                    nodeInfo.getIp(),
-                                    nodeInfo.getPort()
-                            );
-                            if (!visitedNodeIds.contains(newNode.getId().toString())) {
-                                queue.add(newNode);
-                                closestNodes.put(newNode.getId(), newNode);
+                            for (NodeInfo nodeInfo : response.getNodesList()) {
+                                Node newNode = new Node(
+                                        new BigInteger(nodeInfo.getId()),
+                                        nodeInfo.getIp(),
+                                        nodeInfo.getPort()
+                                );
+                                if (!visitedNodeIds.contains(newNode.getId().toString())) {
+                                    queue.add(newNode);
+                                    closestNodes.put(newNode.getId(), newNode);
+                                }
                             }
                         }
-                    }
 
+                    } catch (Exception e) {
+                    } finally {
+                        if (channel != null) {
+                            channel.shutdown();
+                        }
+                    }
+                }));
+            }
+
+            for (CompletableFuture<Void> f : futures) {
+                try {
+                    f.get(3, TimeUnit.SECONDS);
                 } catch (Exception e) {
-                } finally {
-                    if (channel != null) {
-                        channel.shutdown();
-                    }
                 }
-            }));
-        }
+            }
 
-        for (CompletableFuture<Void> f : futures) {
-            try {
-                f.get(3, TimeUnit.SECONDS);
-            } catch (Exception e) {
+            if (valueFound.get()) {
+                return Optional.of(foundValues);
             }
         }
 
-        if (valueFound.get()) {
-            return Optional.of(foundValues);
-        }
+        return foundValues.isEmpty() ? Optional.empty() : Optional.of(foundValues);
     }
 
-    return foundValues.isEmpty() ? Optional.empty() : Optional.of(foundValues);
-}
-
-    // XOR Distance helper
-    private BigInteger xorDistance(String key, BigInteger nodeId) {
-        BigInteger keyHash = new BigInteger(key,16);
-        return keyHash.xor(nodeId);
-    }
-
-
-
-    public BlockMessage gossipBlock(Block block, Node localNode) {
+    public void gossipBlock(Block block, Node localNode) {
         BlockMessage blockMessage;
 
         try {
@@ -405,7 +380,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
 
         } catch (Exception e) {
             System.err.println("Failed to convert Block to Protobuf: " + e.getMessage());
-            return null;
+            return;
         }
 
         for (Node neighbor : localNode.getAllNeighbours()) {
@@ -441,7 +416,6 @@ public Optional<Set<String>> findValue(String key, int ttl) {
             }
         }
 
-        return blockMessage;
     }
 
     public void gossipTransaction(Transaction transaction, byte[] signature, BigInteger senderNodeId) {
@@ -454,15 +428,15 @@ public Optional<Set<String>> findValue(String key, int ttl) {
             transactionMessage = TransactionMessage.newBuilder()
                     .setTransactionData(transactionJson)
                     .setSignature(ByteString.copyFrom(signature))
-                    .setSenderNodeId(localNode.getId().toString())
+                    .setSenderNodeId(LocalNode.getId().toString())
                     .build();
 
         } catch (Exception e) {
             System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
             return;
         }
-        localNode.printAllNeighbours();
-        for (Node neighbor : localNode.getAllNeighbours()) {
+        LocalNode.printAllNeighbours();
+        for (Node neighbor : LocalNode.getAllNeighbours()) {
             if(senderNodeId!= null){
                 if(neighbor.getId().equals(senderNodeId)){
                     continue;
@@ -502,53 +476,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
 
     }
 
-    public static void updateBlockChain(Node localnode, Blockchain blockchain,long startIndex) {
-        List<Node> neighbors = localnode.getAllNeighbours();
-
-        Map<String, List<Block>> chainsByHash = new HashMap<>();
-
-        for (Node neighbor : neighbors) {
-            try {
-                List<Block> neighborBlocks = RpcClient.requestBlocksFrom(neighbor, startIndex);
-
-                if (neighborBlocks.isEmpty()) {
-                    continue;
-                }
-
-                Blockchain blockChain = new Blockchain(neighborBlocks);
-
-                if(!blockChain.validateBlockChain()){
-                    continue;
-                }
-
-                String chainHash = Utils.calculateChainHash(blockChain);
-                chainsByHash.computeIfAbsent(chainHash, k -> new ArrayList<>()).addAll(neighborBlocks);
-
-            } catch (Exception e) {
-                System.err.println("Failed to get blocks from neighbor " + neighbor.getId() + ": " + e.getMessage());
-            }
-        }
-
-        if (chainsByHash.isEmpty()) {
-            System.out.println("No valid chains received.");
-            return;
-        }
-
-        String mostCommonChainHash = chainsByHash.entrySet()
-                .stream()
-                .max(Comparator.comparingInt(e -> e.getValue().size()))
-                .map(Map.Entry::getKey)
-                .orElse(null);
-
-        if (mostCommonChainHash != null) {
-            List<Block> bestChain = chainsByHash.get(mostCommonChainHash);
-
-            blockchain.replaceFromIndex(startIndex, bestChain);
-            System.out.println("Blockchain synchronized with majority chain.");
-        }
-    }
-
-    public static List<Block> requestBlocksFrom(Node peer, long startIndex) {
+    public List<Block> requestBlocksFrom(Node peer, long startIndex) {
         ManagedChannel channel = ManagedChannelBuilder
                 .forAddress(peer.getIpAddress(), peer.getPort())
                 .usePlaintext()
@@ -574,7 +502,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
     public void synchronizeBlockchain() {
         Map<List<Block>, Integer> chainFrequency = new HashMap<>();
 
-        for (Node neighbor : localNode.getAllNeighbours()) {
+        for (Node neighbor : LocalNode.getAllNeighbours()) {
             try {
                 List<Block> receivedBlocks = requestBlocksFrom(neighbor, 0);
 
@@ -607,7 +535,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
         }
 
         if (mostCommonChain != null && !mostCommonChain.isEmpty()) {
-            blockchain.replaceBlockchain(mostCommonChain);
+            Blockchain.replaceBlockchain(mostCommonChain);
             System.out.println("Blockchain synchronized with the network!");
         } else {
             System.out.println("Could not synchronize blockchain: no common chain found.");
@@ -615,31 +543,9 @@ public Optional<Set<String>> findValue(String key, int ttl) {
     }
 
 
-
-    /* public List<AuctionMapEntry> getAuctionListFromNetwork() {
-        String key = Utils.sha256("auction_index");
-        Set<String> auctionEntries = new HashSet<>();
-        List<AuctionMapEntry> result = new ArrayList<>();
-
-        findValue(key, localNode, 10).ifPresent(auctionEntries::addAll);
-
-        for(String entry : new ArrayList<>(auctionEntries)){
-            result.add(AuctionMapEntry.fromString(entry));
-        }
-
-        Set<String> localAuctions = localNode.getValues(key);
-        for(String entry : localAuctions){
-            result.add(AuctionMapEntry.fromString(entry));
-        }
-
-        return result.stream()
-                .filter(AuctionMapEntry::getActive)
-                .collect(Collectors.toList());
-    }
-*/
-    public void PublishAuctionBid(UUID auctionId, String key, String payload) {
+    public void publishAuctionBid(UUID auctionId, String key, String payload) {
         String auctionKey = sha256("auction-subs:" + auctionId);
-        Set<String> subscribers = localNode.getValues(auctionKey);
+        Set<String> subscribers = LocalNode.getValues(auctionKey);
 
         StoreValue value = new StoreValue(StoreValue.Type.BID,payload);
         String payloadJson = gson.toJson(value);
@@ -654,9 +560,9 @@ public Optional<Set<String>> findValue(String key, int ttl) {
         }
     }
 
-    public void PublishAuctionClose(String key, String payload) {
+    public void publishAuctionClose(String key, String payload) {
         String auctionKey = sha256("auction-subs:" + payload);
-        Set<String> subscribers = localNode.getValues(auctionKey);
+        Set<String> subscribers = LocalNode.getValues(auctionKey);
 
         StoreValue value = new StoreValue(StoreValue.Type.CLOSE,payload);
         String payloadJson = gson.toJson(value);
@@ -675,7 +581,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
         try {
             PaymentRequest request = PaymentRequest.newBuilder()
                     .setAuctionId(auctionId.toString())
-                    .setAuctionOwnerId(this.localNode.getId().toString())
+                    .setAuctionOwnerId(this.LocalNode.getId().toString())
                     .setAuctionWinnerId(winner.getId().toString())
                     .setAmount(amount)
                     .build();
@@ -765,9 +671,9 @@ public Optional<Set<String>> findValue(String key, int ttl) {
             for (Node newNode : nodesReturned) {
                 if (addedCount >= MAX_NEW_NODES) break;
 
-                if (!localNode.getId().equals(newNode.getId())
-                        && !localNode.containsNode(newNode.getId())) {
-                    localNode.addNode(newNode);
+                if (!LocalNode.getId().equals(newNode.getId())
+                        && !LocalNode.containsNode(newNode.getId())) {
+                    LocalNode.addNode(newNode);
                     addedCount++;
                 }
             }
@@ -788,7 +694,7 @@ public Optional<Set<String>> findValue(String key, int ttl) {
             transactionMessage = TransactionMessage.newBuilder()
                     .setTransactionData(transactionJson)
                     .setSignature(ByteString.copyFrom(signature))
-                    .setSenderNodeId(localNode.getId().toString())
+                    .setSenderNodeId(LocalNode.getId().toString())
                     .build();
         } catch (Exception e) {
             System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());

@@ -1,23 +1,16 @@
 package Utils;
 
-import Blockchain.Blockchain;
 import Blockchain.Transaction;
 import Blockchain.Block;
 import Kademlia.Node;
 import com.google.gson.*;
-import com.google.protobuf.ByteString;
 import com.kademlia.grpc.BlockMessage;
-import com.kademlia.grpc.TransactionMessage;
 import org.bouncycastle.crypto.digests.SHA256Digest;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Utils implements Comparator<Node> {
 
@@ -39,35 +32,6 @@ public class Utils implements Comparator<Node> {
         BigInteger distance2 = currentNodeId.xor(node2.getId());
 
         return distance1.compareTo(distance2);
-    }
-
-
-
-    private List<Node> sortByDistance(List<Node> peers, BigInteger targetId) {
-        return peers.stream()
-                .sorted(Comparator.comparing(peer -> peer.getId().xor(targetId)))
-                .collect(Collectors.toList());
-    }
-
-    public static PublicKey byteStringToPublicKey(ByteString byteString) {
-        try {
-            Security.addProvider(new BouncyCastleProvider());
-            byte[] keyBytes = byteString.toByteArray();
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA", "BC");
-            return keyFactory.generatePublic(spec);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static ByteString publicKeyToByteString(PublicKey publicKey) {
-        try {
-            byte[] keyBytes = publicKey.getEncoded();
-            return ByteString.copyFrom(keyBytes);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public static Block convertResponseToBlock(BlockMessage receivedBlock){
@@ -108,15 +72,6 @@ public class Utils implements Comparator<Node> {
         return builder.build();
     }
 
-    public static String calculateChainHash(Blockchain blockchain) {
-
-        StringBuilder sb = new StringBuilder();
-        for (Block block : blockchain.getChain()) {
-            sb.append(block.getBlockHash());
-        }
-        return sb.toString();
-    }
-
     public static BigInteger hashKeyToId(String key) {
         SHA256Digest digest = new SHA256Digest();
         byte[] inputBytes = key.getBytes(StandardCharsets.UTF_8);
@@ -126,21 +81,6 @@ public class Utils implements Comparator<Node> {
         digest.doFinal(hashBytes, 0);
 
         return new BigInteger(1, hashBytes);
-    }
-
-    public static JsonElement PublicKeySerializer(PublicKey src) {
-        String base64 = Base64.getEncoder().encodeToString(src.getEncoded());
-        return new JsonPrimitive(base64);
-    }
-    public static PublicKey PublicKeyDeserializer(JsonElement json)
-            throws JsonParseException {
-        try {
-            byte[] bytes = Base64.getDecoder().decode(json.getAsString());
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            return keyFactory.generatePublic(new X509EncodedKeySpec(bytes));
-        } catch (Exception e) {
-            throw new JsonParseException(e);
-        }
     }
 
     public static String sha256(String input) {
@@ -174,12 +114,17 @@ public class Utils implements Comparator<Node> {
         }
     }
 
-
     public static BigInteger generateRandomNodeId() {
         SecureRandom random = new SecureRandom();
         byte[] idBytes = new byte[20];
         random.nextBytes(idBytes);
         return new BigInteger(1, idBytes);
     }
+
+    public static BigInteger xorDistance(String key, BigInteger nodeId) {
+        BigInteger keyHash = new BigInteger(key,16);
+        return keyHash.xor(nodeId);
+    }
+
 
 }

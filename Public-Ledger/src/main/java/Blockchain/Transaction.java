@@ -1,15 +1,13 @@
 package Blockchain;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.Base64;
-
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
-
 
 public class Transaction {
 
@@ -17,43 +15,29 @@ public class Transaction {
         AuctionPayment
     }
 
-    private UUID transactionId;
-    private Instant timestamp;
-    private PublicKey sender;
-    private BigInteger auctionOwnerId;
-    private TransactionType type;
-    private byte[] signature;
-    private Double amount;
-
-    private UUID auctionId;
-    private String itemDescription;
-    private Instant startTime;
-    private Instant endTime;
-
-    public Transaction() {}
+    private UUID TransactionId;
+    private Instant Timestamp;
+    private PublicKey Sender;
+    private BigInteger AuctionOwnerId;
+    private TransactionType Type;
+    private byte[] Signature;
+    private Double Amount;
+    private UUID AuctionId;
 
     public Transaction(TransactionType type, PublicKey sender,BigInteger auctionOwnerId, Double amount) {
-        this.transactionId = UUID.randomUUID();
-        this.timestamp = Instant.now();
-        this.sender = sender;
-        this.auctionOwnerId = auctionOwnerId;
-        this.type = type;
-        this.amount = amount;
+        this.TransactionId = UUID.randomUUID();
+        this.Timestamp = Instant.now();
+        this.Sender = sender;
+        this.AuctionOwnerId = auctionOwnerId;
+        this.Type = type;
+        this.Amount = amount;
     }
-    public Transaction(UUID transactionId, TransactionType type,Instant timestamp, PublicKey sender) {
-        this.transactionId = transactionId;
-        this.timestamp = timestamp;
-        this.sender = sender;
-        this.type = type;
-    }
-
 
     static {
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
             Security.addProvider(new BouncyCastleProvider());
         }
     }
-
 
     public double validateTransaction() {
         try {
@@ -72,24 +56,21 @@ public class Transaction {
 
             Security.addProvider(new BouncyCastleProvider());
             String data =
-                    (transactionId != null ? transactionId.toString() : "") +
-                            (timestamp != null ? timestamp.toString() : "") +
-                            (sender != null ? Base64.getEncoder().encodeToString(sender.getEncoded()) : "") +
-                            (type != null ? type.toString() : "") +
-                            (auctionId != null ? auctionId.toString() : "") +
-                            (itemDescription != null ? itemDescription : "") +
-                            (startTime != null ? startTime.toString() : "") +
-                            (endTime != null ? endTime.toString() : "") +
-                            (amount != null ? amount.toString() : "");
+                    (TransactionId != null ? TransactionId.toString() : "") +
+                            (Timestamp != null ? Timestamp.toString() : "") +
+                            (Sender != null ? Base64.getEncoder().encodeToString(Sender.getEncoded()) : "") +
+                            (Type != null ? Type.toString() : "") +
+                            (AuctionId != null ? AuctionId.toString() : "") +
+                            (Amount != null ? Amount.toString() : "");
 
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
-            Signature verifier = Signature.getInstance("SHA256withRSA", "BC");
-            verifier.initVerify(sender);
+            Signature verifier = java.security.Signature.getInstance("SHA256withRSA", "BC");
+            verifier.initVerify(Sender);
             verifier.update(message);
 
-            var secure = verifier.verify(this.signature);
+            var secure = verifier.verify(this.Signature);
 
             if(!secure){
                 return 0.2;
@@ -109,98 +90,54 @@ public class Transaction {
             Security.addProvider(new BouncyCastleProvider());
 
             String data =
-                    (transactionId != null ? transactionId.toString() : "") +
-                            (timestamp != null ? timestamp.toString() : "") +
-                            (sender != null ? Base64.getEncoder().encodeToString(sender.getEncoded()) : "") +
-                            (type != null ? type.toString() : "") +
-                            (auctionId != null ? auctionId.toString() : "") +
-                            (itemDescription != null ? itemDescription : "") +
-                            (startTime != null ? startTime.toString() : "") +
-                            (endTime != null ? endTime.toString() : "") +
-                            (amount != null ? amount.toString() : "");
+                    (TransactionId != null ? TransactionId.toString() : "") +
+                            (Timestamp != null ? Timestamp.toString() : "") +
+                            (Sender != null ? Base64.getEncoder().encodeToString(Sender.getEncoded()) : "") +
+                            (Type != null ? Type.toString() : "") +
+                            (AuctionId != null ? AuctionId.toString() : "") +
+                            (Amount != null ? Amount.toString() : "");
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
-            Signature signature = Signature.getInstance("SHA256withRSA", "BC");
+            Signature signature = java.security.Signature.getInstance("SHA256withRSA", "BC");
             signature.initSign(privateKey);
             signature.update(message);
 
-            this.signature = signature.sign();
+            this.Signature = signature.sign();
         } catch (Exception e) {
             throw new RuntimeException("Failed to sign transaction", e);
-
         }
     }
 
     public void setSignature(byte[] signature) {
-        this.signature = signature;
+        this.Signature = signature;
     }
 
     public byte[] getSignature() {
-        return this.signature;
+        return this.Signature;
     }
 
-    public UUID getTransactionId() { return transactionId; }
-    public Instant getTimestamp() { return timestamp; }
-    public PublicKey getSender() { return sender; }
-    public BigInteger getAuctionOwnerId() { return auctionOwnerId; }
-    public TransactionType getType() { return type; }
-    public UUID getAuctionId() { return auctionId; }
-    public String getItemDescription() { return itemDescription; }
-    public Instant getStartTime() { return startTime; }
-    public Instant getEndTime() { return endTime; }
-    public Double getAmount() { return amount; }
-    public void setTransactionId(UUID transactionId) {
-        this.transactionId = transactionId;
-    }
+    public UUID getTransactionId() { return TransactionId; }
+
+    public Instant getTimestamp() { return Timestamp; }
+
+    public PublicKey getSender() { return Sender; }
+
+    public BigInteger getAuctionOwnerId() { return AuctionOwnerId; }
+
+    public TransactionType getType() { return Type; }
+
+    public UUID getAuctionId() { return AuctionId; }
+
+    public Double getAmount() { return Amount; }
 
     public void setType(TransactionType type) {
-        this.type = type;
-    }
-
-    public void setTimestamp(Instant timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public void setSender(PublicKey sender) {
-        this.sender = sender;
+        this.Type = type;
     }
 
     public void setAuctionId(UUID auctionId) {
-        this.auctionId = auctionId;
+        this.AuctionId = auctionId;
     }
-
-    public void setItemDescription(String itemDescription) {
-        this.itemDescription = itemDescription;
-    }
-
-    public void setStartTime(Instant startTime) {
-        this.startTime = startTime;
-    }
-
-    public void setEndTime(Instant endTime) {
-        this.endTime = endTime;
-    }
-
-    public void setAmount(Double amount) {
-        this.amount = amount;
-    }
-
-    @Override
-    public String toString() {
-        return "Transaction{" +
-                "transactionId=" + (transactionId != null ? transactionId.toString() : "null") +
-                ", type=" + (type != null ? type.name() : "null") +
-                ", timestamp=" + (timestamp != null ? timestamp.toString() : "null") +
-                ", senderPublicKey=" + (sender != null ? Base64.getEncoder().encodeToString(sender.getEncoded()) : "null") +
-                ", auctionId='" + (auctionId != null ? auctionId : "null") + '\'' +
-                ", itemDescription='" + (itemDescription != null ? itemDescription : "null") + '\'' +
-                ", startTime='" + (startTime != null ? startTime : "null") + '\'' +
-                ", endTime='" + (endTime != null ? endTime : "null") + '\'' +
-                ", bidAmount='" + (amount != null ? amount : "null") + '\'' +
-                '}';
-    }
-
 
 }
 

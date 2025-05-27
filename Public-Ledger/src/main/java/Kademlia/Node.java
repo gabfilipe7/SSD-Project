@@ -8,9 +8,6 @@ import java.security.Security;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.stream.Collectors;
-
 import Blockchain.Blockchain;
 import Blockchain.Block;
 import Blockchain.Transaction;
@@ -23,38 +20,37 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public class Node {
 
-    private BigInteger nodeId;
-    private String ipAddress;
+    private BigInteger NodeId;
+    private String IpAddress;
     private int K;
-    private int port;
-    private ArrayList<KBucket> routingTable;
-    private ExecutorService executorService;
-    private boolean isMiner;
-    private double balance = 100;
-    private final Map<String, Set<String>> map = new ConcurrentHashMap<>();
-    private Map<UUID, Auction> auctions = new HashMap<>();
-    private KeyPair keyPair;
-    private boolean isBootstrap = false;
-    public final Map<BigInteger, Reputation> reputationMap = new HashMap<>();
+    private int Port;
+    private ArrayList<KBucket> RoutingTable;
+    private boolean IsMiner;
+    private double Balance = 100;
+    private final Map<String, Set<String>> Map = new ConcurrentHashMap<>();
+    private Map<UUID, Auction> Auctions = new HashMap<>();
+    private KeyPair KeyPair;
+    private boolean IsBootstrap = false;
+    public final Map<BigInteger, Reputation> ReputationMap = new HashMap<>();
 
     static {
         Security.addProvider(new BouncyCastleProvider());
     }
 
     public Node(String ipAddress, int port, int k, boolean isBootstrap, KeyPair keys) {
-        this.ipAddress = ipAddress;
-        this.port = port;
-        this.routingTable = new ArrayList<>(256);
+        this.IpAddress = ipAddress;
+        this.Port = port;
+        this.RoutingTable = new ArrayList<>(256);
         for (int i = 0; i < 256; i++) {
-            this.routingTable.add(new KBucket(20));
+            this.RoutingTable.add(new KBucket(20));
         }
-        this.isBootstrap = isBootstrap;
+        this.IsBootstrap = isBootstrap;
 
         try{
             if (keys == null) {
                 keys = generateKeys();
-                this.keyPair = keys;
-                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
+                this.KeyPair = keys;
+                this.NodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
                 try {
                     Authentication.saveKeyPair(keys);
                     System.out.println("Generated new keys and saved to file.");
@@ -63,16 +59,16 @@ public class Node {
                 }
             }
             else{
-                this.keyPair = keys;
-                this.nodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
+                this.KeyPair = keys;
+                this.NodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
             }
 
            if(port == 5000){
-               this.nodeId = new BigInteger("114463119885993250460859498894823303590894975338136063695510593414907458792199");
+               this.NodeId = new BigInteger("114463119885993250460859498894823303590894975338136063695510593414907458792199");
                 return;
             }
             if(port == 5001){
-                this.nodeId = new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799");
+                this.NodeId = new BigInteger("12345678901234565747082763456095068247603666210263000000526401266846914547799");
             }
         }
         catch (Exception e) {
@@ -81,25 +77,25 @@ public class Node {
     }
 
     public Node(BigInteger nodeId, String ipAddress, int port, int k, boolean isBootstrap) {
-        this.ipAddress = ipAddress;
-        this.port = port;
-        this.routingTable = new ArrayList<>(256);
+        this.IpAddress = ipAddress;
+        this.Port = port;
+        this.RoutingTable = new ArrayList<>(256);
         for (int i = 0; i < 256; i++) {
-            this.routingTable.add(new KBucket(20));
+            this.RoutingTable.add(new KBucket(20));
         }
-        this.isBootstrap = isBootstrap;
-        this.keyPair = generateKeys();
-        this.nodeId = nodeId;
+        this.IsBootstrap = isBootstrap;
+        this.KeyPair = generateKeys();
+        this.NodeId = nodeId;
     }
 
     public Node(BigInteger nodeId, String ipAddress, int port){
-        this.ipAddress = ipAddress;
-        this.port = port;
-        this.nodeId = nodeId;
+        this.IpAddress = ipAddress;
+        this.Port = port;
+        this.NodeId = nodeId;
     }
 
     public BigInteger xorDistance(BigInteger other) {
-        return this.nodeId.xor(other);
+        return this.NodeId.xor(other);
     }
 
     public int getTargetBucketIndex(BigInteger nodeID) {
@@ -110,30 +106,25 @@ public class Node {
 
     public boolean addNode(Node node) {
         int index = getTargetBucketIndex(node.getId());
-        KBucket bucket = this.routingTable.get(index);
+        KBucket bucket = this.RoutingTable.get(index);
         boolean success = bucket.addNode(node);
 
-        Reputation rep = reputationMap.get(node.getId());
+        Reputation rep = ReputationMap.get(node.getId());
         if (rep == null) {
             rep = new Reputation(0.3,Instant.now());
             rep.generateId();
-            reputationMap.put(node.getId(), rep);
+            ReputationMap.put(node.getId(), rep);
         }
         return success;
     }
 
     public BigInteger getId() {
-        return this.nodeId;
-    }
-
-    public boolean ping(Node node) {
-        System.out.println("Pinging node: " + node.getId());
-        return true;
+        return this.NodeId;
     }
 
     public List<Node> getAllNeighbours() {
         List<Node> allNeighbours = new ArrayList<>();
-        for (KBucket bucket : routingTable) {
+        for (KBucket bucket : RoutingTable) {
             allNeighbours.addAll(bucket.getNodes());
         }
         return allNeighbours;
@@ -148,7 +139,7 @@ public class Node {
     }
 
     public boolean containsNode(BigInteger nodeId) {
-        for (KBucket bucket : routingTable) {
+        for (KBucket bucket : RoutingTable) {
             for (Node node : bucket.getNodes()) {
                 if (node.getId().equals(nodeId)) {
                     return true;
@@ -167,10 +158,10 @@ public class Node {
         int j = 1;
         Utils nodeComparator = new Utils(targetNodeId);
 
-        for (int it = 0; it < this.routingTable.size(); it++) {
+        for (int it = 0; it < this.RoutingTable.size(); it++) {
 
-            if (targetBucketIndex + i < this.routingTable.size()) {
-                KBucket bucket = this.routingTable.get(targetBucketIndex + i);
+            if (targetBucketIndex + i < this.RoutingTable.size()) {
+                KBucket bucket = this.RoutingTable.get(targetBucketIndex + i);
                 if (bucket != null && !bucket.getNodes().isEmpty()) {
                     for (Node node : bucket.getNodes()) {
                         if (closestNodes.size() < sizeNumber) {
@@ -185,7 +176,7 @@ public class Node {
             }
 
             if (targetBucketIndex - j >= 0) {
-                KBucket bucket = this.routingTable.get(targetBucketIndex - j);
+                KBucket bucket = this.RoutingTable.get(targetBucketIndex - j);
                 if (bucket != null && !bucket.getNodes().isEmpty()) {
                     for (Node node : bucket.getNodes()) {
                         if (closestNodes.size() < sizeNumber) {
@@ -220,71 +211,34 @@ public class Node {
         }
     }
 
-
     public boolean isMiner(){
-        return this.isMiner;
+        return this.IsMiner;
     }
 
     public void setIsMiner(boolean isMiner){
-        this.isMiner = isMiner;
+        this.IsMiner = isMiner;
     }
 
-
     public void addKey(String key, String value) {
-        map.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(value);
+        Map.computeIfAbsent(key, k -> ConcurrentHashMap.newKeySet()).add(value);
     }
 
     public void addKeyWithReplace(String key, String value) {
-        map.put(key, new HashSet<>(Set.of(value)));
+        Map.put(key, new HashSet<>(Set.of(value)));
     }
 
     public void addKeyWithReplace(String key, Set<String> value) {
-        map.put(key, value);
+        Map.put(key, value);
     }
 
     public Set<String> getValues(String key) {
-        return map.getOrDefault(key, new HashSet<>());
+        return Map.getOrDefault(key, new HashSet<>());
     }
-    public boolean removeKey(String key) {
-        if (map.containsKey(key)) {
-            map.remove(key);
-            return true;
-        }
-        return false;
-    }
-
 
     public Auction createAuction(String itemDescription, Instant startTime) {
         Auction newAuction = new Auction(UUID.randomUUID(), itemDescription, this.getId(), startTime);
-        auctions.put(newAuction.getAuctionId(), newAuction);
+        Auctions.put(newAuction.getAuctionId(), newAuction);
         return newAuction;
-    }
-
-    public Map<UUID, Auction>  getAuctionsMap() {
-        return auctions;
-    }
-
-
-    public boolean closeAuction(UUID auctionId) {
-        Auction auction = auctions.get(auctionId);
-        if (auction != null && auction.getOwner().equals(this.getPublicKey()))  {
-            auction.closeAuction();
-            return true;
-        }
-        return false;
-    }
-
-    public boolean placeBid(UUID auctionId, BigInteger bidder, double bidAmount) {
-        Auction auction = auctions.get(auctionId);
-        if (auction != null && !auction.isClosed() && Instant.now().isAfter(auction.getStartTime())) {
-            auction.placeBid(bidder, bidAmount);
-            return true;
-        }
-        return false;
-    }
-
-    public Auction getAuction(UUID auctionId) {
-        return auctions.get(auctionId);
     }
 
     @Override
@@ -294,15 +248,13 @@ public class Node {
 
         Node node = (Node) o;
 
-        return  Objects.equals(nodeId, node.nodeId);
+        return  Objects.equals(NodeId, node.NodeId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId);
+        return Objects.hash(NodeId);
     }
-
-
 
     public int getK(){
         return this.K;
@@ -313,53 +265,44 @@ public class Node {
     }
 
     public String getIpAddress(){
-        return this.ipAddress;
+        return this.IpAddress;
     }
+
     public int getPort(){
-        return this.port;
+        return this.Port;
     }
+
     public PublicKey getPublicKey() {
-        return keyPair.getPublic();
+        return KeyPair.getPublic();
     }
 
     public PrivateKey getPrivateKey() {
-        return keyPair.getPrivate();
-    }
-
-    public List<Auction> GetListedAuctions(){
-        return new ArrayList<>(auctions.values());
-    }
-
-    public List<Auction> GetActiveAuctions() {
-        return auctions.values().stream()
-                .filter(auction -> !auction.isClosed())
-                .collect(Collectors.toList());
+        return KeyPair.getPrivate();
     }
 
     public void addAuctionToAuctions(Auction a) {
-        this.auctions.put(a.getAuctionId(),a);
+        this.Auctions.put(a.getAuctionId(),a);
     }
 
 
     public boolean removeAuction(UUID auctionId) {
-        if (auctions.containsKey(auctionId)) {
-            auctions.remove(auctionId);
+        if (Auctions.containsKey(auctionId)) {
+            Auctions.remove(auctionId);
             return true;
         }
         return false;
     }
 
-
     public double getBalance() {
-        return balance;
+        return Balance;
     }
 
     public void updateBalance(double value) {
-        this.balance = this.balance + value;
+        this.Balance = this.Balance + value;
     }
 
-    public ArrayList<KBucket>  getRoutingTable(){
-        return routingTable;
+    public ArrayList<KBucket> getRoutingTable(){
+        return RoutingTable;
     }
 
     public long calculateLocalNodeBalance(Blockchain blockchain) {
@@ -372,12 +315,12 @@ public class Node {
                     balance -= tx.getAmount();
                 }
 
-                if (tx.getAuctionOwnerId().equals(nodeId)) {
+                if (tx.getAuctionOwnerId().equals(NodeId)) {
                     balance += tx.getAmount();
                 }
             }
         }
-        this.balance = balance;
+        this.Balance = balance;
         return balance;
     }
 

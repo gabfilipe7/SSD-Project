@@ -9,7 +9,6 @@ public class Authentication {
 
     private static final String KEY_FILE = "authentication_keys.dat";
 
-
     public static void saveKeyPair(KeyPair keyPair) throws IOException {
         try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(KEY_FILE))) {
             byte[] pubBytes = keyPair.getPublic().getEncoded();
@@ -70,8 +69,8 @@ public class Authentication {
         }
     }
 
-
     public static boolean keysExist() {
         return new File(KEY_FILE).exists();
     }
+
 }

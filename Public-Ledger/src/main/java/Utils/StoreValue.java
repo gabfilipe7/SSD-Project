@@ -1,7 +1,7 @@
 package Utils;
 
-
 public class StoreValue {
+
     public enum Type {
         AUCTION,
         SUBSCRIPTION,
@@ -12,19 +12,20 @@ public class StoreValue {
     }
 
     public StoreValue(Type type, String payload){
-        this.type = type;
-        this.payload = payload;
+        this.Type = type;
+        this.Payload = payload;
     }
 
-    private Type type;
-    private String payload;
+    private Type Type;
+
+    private String Payload;
 
     public String getPayload(){
-        return this.payload;
+        return this.Payload;
     }
 
     public Type getType(){
-        return this.type;
+        return this.Type;
     }
 
 }

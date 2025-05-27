@@ -1,68 +1,54 @@
 package Auction;
 
-import com.google.gson.*;
-
 import java.math.BigInteger;
-import java.security.KeyFactory;
-import java.security.PublicKey;
-import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.*;
 
 public class Auction {
-    private UUID auctionId;
-    private String itemDescription;
-    private BigInteger owner;
-    private Instant startTime;
-    private Instant endTime;
-    private boolean isClosed;
-    private List<Bid> bids = new ArrayList<>();
+
+    private UUID AuctionId;
+    private String ItemDescription;
+    private BigInteger Owner;
+    private Instant StartTime;
+    private boolean IsClosed;
+    private List<Bid> Bids = new ArrayList<>();
 
     public Auction(UUID auctionId, String itemDescription, BigInteger owner, Instant startTime) {
-        this.auctionId = auctionId;
-        this.itemDescription = itemDescription;
-        this.owner = owner;
-        this.startTime = startTime;
-        this.isClosed = false;
+        this.AuctionId = auctionId;
+        this.ItemDescription = itemDescription;
+        this.Owner = owner;
+        this.StartTime = startTime;
+        this.IsClosed = false;
     }
 
     public void placeBid(BigInteger bidder, double amount) {
-        if (!isClosed /*&& Instant.now().isBefore(endTime)*/) {
-            bids.add(new Bid(this.getAuctionId(), bidder, amount, Instant.now()));
+        if (!IsClosed ) {
+            Bids.add(new Bid(this.getAuctionId(), bidder, amount, Instant.now()));
         }
     }
 
     public void placeBid(Bid bid) {
-        if (!isClosed /*&& Instant.now().isBefore(endTime)*/) {
-            bids.add(bid);
+        if (!IsClosed) {
+            Bids.add(bid);
         }
     }
 
-
     public void closeAuction() {
-        this.isClosed = true;
+        this.IsClosed = true;
     }
 
     public Optional<Bid> getWinningBid() {
-        return bids.stream().max(Comparator.comparingDouble(Bid::getAmount));
+        return Bids.stream().max(Comparator.comparingDouble(Bid::getAmount));
     }
 
-    public BigInteger getWinner() {
-        if (bids.isEmpty()) {
-            return null;
-        }
+    public String getItem() { return ItemDescription; }
 
-        Bid winningBid = bids.stream()
-                .max(Comparator.comparingDouble(Bid::getAmount))
-                .orElse(null);
+    public Instant getStartTime() {return StartTime; }
 
-        return winningBid.getBidder();
-    }
+    public UUID getAuctionId() { return AuctionId; }
 
-    public String getItem() { return itemDescription; }
-    public Instant getStartTime() {return startTime; }
-    public UUID getAuctionId() { return auctionId; }
-    public boolean isClosed() { return isClosed; }
-    public BigInteger getOwner() { return owner; }
-    public List<Bid> getBids() { return bids; }
+    public boolean isClosed() { return IsClosed; }
+
+    public BigInteger getOwner() { return Owner; }
+
 }

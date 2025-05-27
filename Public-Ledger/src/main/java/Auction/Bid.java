@@ -1,25 +1,27 @@
 package Auction;
 
 import java.math.BigInteger;
-import java.security.PublicKey;
 import java.time.Instant;
 import java.util.UUID;
 
 public class Bid {
-    private BigInteger bidder;
-    private double amount;
-    private Instant timestamp;
-    private UUID auctionId;
+
+    private final BigInteger Bidder;
+    private final double Amount;
+    private final Instant Timestamp;
+    private final UUID AuctionId;
 
     public Bid(UUID auctionId, BigInteger bidder, double amount, Instant timestamp) {
-        this.auctionId = auctionId;
-        this.bidder = bidder;
-        this.amount = amount;
-        this.timestamp = timestamp;
+        this.AuctionId = auctionId;
+        this.Bidder = bidder;
+        this.Amount = amount;
+        this.Timestamp = timestamp;
     }
 
-    public UUID getAuctionId() { return auctionId; }
-    public BigInteger getBidder() { return bidder; }
-    public double getAmount() { return amount; }
-    public Instant getTimestamp() { return timestamp; }
+    public UUID getAuctionId() { return AuctionId; }
+
+    public BigInteger getBidder() { return Bidder; }
+
+    public double getAmount() { return Amount; }
+
 }

@@ -40,11 +40,5 @@ public class KBucket {
     public List<Node> getNodes() {
         return this.Nodes;
     }
-    public int getK() {
-        return this.K;
-    }
-
-
-
 
 }

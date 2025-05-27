@@ -66,7 +66,9 @@ public class Block {
         while (shouldContinueMining.getAsBoolean()) {
             String hash = this.calculateBlockHash();
             if (hash.startsWith(pattern)) {
-                System.out.println("YOU MINED THE BLOCK YEYY!! :D");
+                System.out.println("✅ You successfully mined the block!");
+                System.out.println("💰 Mining Reward: 10 coins were credited to your balance!");
+                System.out.println("🚀 Keep mining to secure the network and earn more rewards!");
                 this.BlockHash = hash;
                 break;
             }

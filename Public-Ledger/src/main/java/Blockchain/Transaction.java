@@ -140,5 +140,16 @@ public class Transaction {
         this.AuctionId = auctionId;
     }
 
+    @Override
+    public String toString() {
+        return "Transaction{" +
+                "transactionId=" + (TransactionId != null ? TransactionId.toString() : "null") +
+                ", type=" + (Type != null ? Type.name() : "null") +
+                ", timestamp=" + (Timestamp != null ? Timestamp.toString() : "null") +
+                ", senderPublicKey=" + (Sender != null ? Base64.getEncoder().encodeToString(Sender.getEncoded()) : "null") +
+                ", auctionId='" + (AuctionId != null ? AuctionId : "null") + '\'' +
+                ", bidAmount='" + (Amount != null ? Amount : "null") + '\'' +
+                '}';
+    }
 }
 

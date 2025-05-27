@@ -28,7 +28,6 @@ public class Node {
     private boolean IsMiner;
     private double Balance = 100;
     private final Map<String, Set<String>> Map = new ConcurrentHashMap<>();
-    private Map<UUID, Auction> Auctions = new HashMap<>();
     private KeyPair KeyPair;
     private boolean IsBootstrap = false;
     public final Map<BigInteger, Reputation> ReputationMap = new HashMap<>();
@@ -53,9 +52,8 @@ public class Node {
                 this.NodeId = new BigInteger(Utils.sha256(keys.getPublic().getEncoded()),16);
                 try {
                     Authentication.saveKeyPair(keys);
-                    System.out.println("Generated new keys and saved to file.");
-                } catch (IOException e) {
-                    System.err.println("Failed to save keys: " + e.getMessage());
+                } catch (IOException ignored) {
+
                 }
             }
             else{
@@ -237,7 +235,6 @@ public class Node {
 
     public Auction createAuction(String itemDescription, Instant startTime) {
         Auction newAuction = new Auction(UUID.randomUUID(), itemDescription, this.getId(), startTime);
-        Auctions.put(newAuction.getAuctionId(), newAuction);
         return newAuction;
     }
 
@@ -280,18 +277,6 @@ public class Node {
         return KeyPair.getPrivate();
     }
 
-    public void addAuctionToAuctions(Auction a) {
-        this.Auctions.put(a.getAuctionId(),a);
-    }
-
-
-    public boolean removeAuction(UUID auctionId) {
-        if (Auctions.containsKey(auctionId)) {
-            Auctions.remove(auctionId);
-            return true;
-        }
-        return false;
-    }
 
     public double getBalance() {
         return Balance;
@@ -311,11 +296,11 @@ public class Node {
         for (Block block : blockchain.getChain()) {
             for (Transaction tx : block.getTransactions()) {
 
-                if (tx.getSender().equals(getPublicKey())) {
+                if (tx.getSender() != null && tx.getSender().equals(getPublicKey())) {
                     balance -= tx.getAmount();
                 }
 
-                if (tx.getAuctionOwnerId().equals(NodeId)) {
+                if (tx.getAuctionOwnerId() != null && tx.getAuctionOwnerId().equals(NodeId)) {
                     balance += tx.getAmount();
                 }
             }

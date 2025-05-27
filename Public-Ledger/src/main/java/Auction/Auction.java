@@ -28,9 +28,7 @@ public class Auction {
     }
 
     public void placeBid(Bid bid) {
-        if (!IsClosed) {
-            Bids.add(bid);
-        }
+        Bids.add(bid);
     }
 
     public void closeAuction() {
@@ -39,6 +37,10 @@ public class Auction {
 
     public Optional<Bid> getWinningBid() {
         return Bids.stream().max(Comparator.comparingDouble(Bid::getAmount));
+    }
+
+    public  List<Bid> getbids() {
+        return Bids;
     }
 
     public String getItem() { return ItemDescription; }

@@ -29,7 +29,6 @@ import static java.lang.Math.min;
 public class RpcClient {
 
     private static final long TIMEOUT_SECONDS = 10 ;
-    private final ManagedChannel Channel;
     private ExecutorService ExecutorService;
     private final Node LocalNode;
     private final Blockchain Blockchain;
@@ -42,10 +41,6 @@ public class RpcClient {
     public RpcClient(Node localNode,Blockchain blockchain) {
         this.LocalNode = localNode;
         this.Blockchain = blockchain;
-        this.Channel = ManagedChannelBuilder
-                .forAddress(localNode.getIpAddress(), localNode.getPort())
-                .usePlaintext()
-                .build();
         this.ExecutorService = Executors.newFixedThreadPool(10);
     }
 
@@ -116,7 +111,7 @@ public class RpcClient {
         Set<Node> alreadyChecked = new HashSet<>();
         Set<Node> discovered = new HashSet<>(initialPeers);
 
-        return findNodeRecursive(targetId, initialPeers, alreadyChecked, discovered, 20, 2);
+        return findNodeRecursive(targetId, initialPeers, alreadyChecked, discovered, 20, 20);
     }
 
     private CompletableFuture<List<Node>> findNodeRecursive(
@@ -181,38 +176,60 @@ public class RpcClient {
 
 
     public List<Node> findNode(Node peer, BigInteger targetId) {
-        ManagedChannel channel = ManagedChannelBuilder
-                .forAddress(peer.getIpAddress(), peer.getPort())
-                .usePlaintext()
-                .build();
+        ManagedChannel channel = null;
+        try {
+            channel = ManagedChannelBuilder
+                    .forAddress(peer.getIpAddress(), peer.getPort())
+                    .usePlaintext()
+                    .build();
 
-        KademliaServiceGrpc.KademliaServiceBlockingStub stub =
-                KademliaServiceGrpc.newBlockingStub(channel);
+            KademliaServiceGrpc.KademliaServiceBlockingStub stub =
+                    KademliaServiceGrpc.newBlockingStub(channel);
 
-        FindNodeRequest request = FindNodeRequest.newBuilder()
-                .setTargetId(targetId.toString())
-                .build();
+            FindNodeRequest request = FindNodeRequest.newBuilder()
+                    .setTargetId(targetId.toString())
+                    .build();
 
-        FindNodeResponse response = stub.findNode(request);
+            FindNodeResponse response = stub.findNode(request);
 
-        channel.shutdown();
+            channel.shutdown();
+            try {
+                if (!channel.awaitTermination(3, TimeUnit.SECONDS)) {
+                    channel.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                channel.shutdownNow();
+            }
 
-        List<Node> nodes = response.getNodesList().stream()
-                .map(nodeInfo -> new Node(
-                        new BigInteger(nodeInfo.getId()),
-                        nodeInfo.getIp(),
-                        nodeInfo.getPort()
-                ))
-                .filter(node -> !node.getId().equals(LocalNode.getId()))
-                .collect(Collectors.toList());
+            List<Node> nodes = response.getNodesList().stream()
+                    .map(nodeInfo -> new Node(
+                            new BigInteger(nodeInfo.getId()),
+                            nodeInfo.getIp(),
+                            nodeInfo.getPort()
+                    ))
+                    .filter(node -> !node.getId().equals(LocalNode.getId()))
+                    .collect(Collectors.toList());
 
-        for(Node node : nodes){
-            if(!LocalNode.containsNode(node.getId()) && !node.getId().equals(LocalNode.getId())){
-                LocalNode.addNode(node);
+            for (Node node : nodes) {
+                if (!LocalNode.containsNode(node.getId()) && !node.getId().equals(LocalNode.getId())) {
+                    LocalNode.addNode(node);
+                }
+            }
+
+            return nodes;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return List.of();
+        } finally {
+            if (channel != null) {
+                channel.shutdown();
+                try {
+                    channel.awaitTermination(3, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    System.err.println("Channel termination interrupted");
+                }
             }
         }
-
-        return nodes;
     }
 
     public boolean store(String ip, int port, String key, String value) {
@@ -328,7 +345,7 @@ public class RpcClient {
                             }
                         }
 
-                    } catch (Exception e) {
+                    } catch (Exception ignored) {
                     } finally {
                         if (channel != null) {
                             channel.shutdown();
@@ -340,7 +357,7 @@ public class RpcClient {
             for (CompletableFuture<Void> f : futures) {
                 try {
                     f.get(3, TimeUnit.SECONDS);
-                } catch (Exception e) {
+                } catch (Exception ignored) {
                 }
             }
 
@@ -392,7 +409,7 @@ public class RpcClient {
 
                 KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
-                GossipResponse response = stub.withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                GossipResponse response = stub.withDeadlineAfter(5, TimeUnit.SECONDS)
                         .gossipBlock(blockMessage);
 
                 if (response.getSuccess()) {
@@ -432,10 +449,9 @@ public class RpcClient {
                     .build();
 
         } catch (Exception e) {
-            System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
             return;
         }
-        LocalNode.printAllNeighbours();
+
         for (Node neighbor : LocalNode.getAllNeighbours()) {
             if(senderNodeId!= null){
                 if(neighbor.getId().equals(senderNodeId)){
@@ -453,23 +469,14 @@ public class RpcClient {
                 GossipResponse response = stub.withDeadlineAfter(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                         .gossipTransaction(transactionMessage);
 
-                if (response.getSuccess()) {
-                    System.out.println("Successfully gossiped transaction to " + neighbor.getId());
-                } else {
-                    System.out.println("Failed to gossip transaction to " + neighbor.getId());
-                }
 
-            } catch (StatusRuntimeException e) {
-                System.err.println("gRPC error while gossiping to " + neighbor.getId() + ": " + e.getStatus().getDescription());
-            } catch (Exception e) {
-                System.err.println("Error while gossiping to " + neighbor.getId() + ": " + e.getMessage());
+            } catch (StatusRuntimeException ignored) {
             } finally {
                 if (channel != null) {
                     try {
                         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        System.err.println("Channel shutdown interrupted: " + e.getMessage());
-                    }
+                    } catch (InterruptedException ignored) {
+                  }
                 }
             }
         }
@@ -519,8 +526,7 @@ public class RpcClient {
                     chainFrequency.put(receivedBlocks, 1);
                 }
 
-            } catch (Exception e) {
-                System.err.println("Failed to get blocks from neighbor " + neighbor.getId() + ": " + e.getMessage());
+            } catch (Exception ignored) {
             }
         }
 
@@ -536,9 +542,6 @@ public class RpcClient {
 
         if (mostCommonChain != null && !mostCommonChain.isEmpty()) {
             Blockchain.replaceBlockchain(mostCommonChain);
-            System.out.println("Blockchain synchronized with the network!");
-        } else {
-            System.out.println("Could not synchronize blockchain: no common chain found.");
         }
     }
 
@@ -594,14 +597,8 @@ public class RpcClient {
 
             PaymentRequestResponse response = stub.sendPaymentRequest(request);
 
-            if (response.getSuccess()) {
-                System.out.println("Payment request sent to winner: " + winner.getId());
-            } else {
-                System.out.println("Payment request rejected or failed: " + winner.getId());
-            }
             channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            System.err.println("Failed to send payment request to " + winner.getId() + ": " + e.getMessage());
+        } catch (Exception ignored) {
         }
     }
 
@@ -618,7 +615,6 @@ public class RpcClient {
                     .setSignature(ByteString.copyFrom(signature))
                     .build();
         } catch (Exception e) {
-            System.err.println("Failed to build GossipReputationRequest: " + e);
             return;
         }
 
@@ -640,22 +636,12 @@ public class RpcClient {
                         .withDeadlineAfter(5, TimeUnit.SECONDS)
                         .gossipReputation(request);
 
-                if (response.getAccepted()) {
-                    System.out.println("Successfully gossiped reputation to " + neighbor.getId());
-                } else {
-                    System.out.println("Gossip rejected by " + neighbor.getId());
-                }
-
-            } catch (StatusRuntimeException e) {
-                System.err.println("gRPC error while gossiping to " + neighbor.getId() + ": " + e.getStatus().getDescription());
-            } catch (Exception e) {
-                System.err.println("Error while gossiping to " + neighbor.getId() + ": " + e.getMessage());
+            } catch (Exception ignored) {
             } finally {
                 if (channel != null) {
                     try {
                         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        System.err.println("Channel shutdown interrupted: " + e.getMessage());
+                    } catch (InterruptedException ignored) {
                     }
                 }
             }
@@ -679,7 +665,6 @@ public class RpcClient {
             }
 
         }).exceptionally(ex -> {
-            System.err.println("Failed to refresh routing table for target " + targetId + ": " + ex.getMessage());
             return null;
         });
     }
@@ -696,8 +681,10 @@ public class RpcClient {
                     .setSignature(ByteString.copyFrom(signature))
                     .setSenderNodeId(LocalNode.getId().toString())
                     .build();
+
+            System.out.println("Presunto2");
         } catch (Exception e) {
-            System.err.println("Failed to convert Transaction to Protobuf: " + e.getMessage());
+            System.out.println("Presunto1");
             futureResult.complete(false);
             return futureResult;
         }
@@ -705,10 +692,13 @@ public class RpcClient {
         findNode(transaction.getAuctionOwnerId()).thenAccept(closeToWinner -> {
             boolean success = false;
 
+            System.out.println("Presunto3");
             for (Node node : closeToWinner) {
                 if (node.getId().equals(transaction.getAuctionOwnerId())) {
                     ManagedChannel channel = null;
                     try {
+
+                        System.out.println("Presunto4");
                         channel = ManagedChannelBuilder.forAddress(node.getIpAddress(), node.getPort())
                                 .usePlaintext()
                                 .build();
@@ -719,21 +709,20 @@ public class RpcClient {
                                 .pay(transactionMessage);
 
                         if (response.getSuccess()) {
+
+                            System.out.println("Presunto5");
                             success = true;
-                            System.out.println("Successfully paid to " + node.getId());
-                        } else {
-                            System.out.println("Failed to pay to " + node.getId());
                         }
-                    } catch (StatusRuntimeException e) {
-                        System.err.println("gRPC error while paying to " + node.getId() + ": " + e.getStatus().getDescription());
-                    } catch (Exception e) {
-                        System.err.println("Error while paying to " + node.getId() + ": " + e.getMessage());
+                    }catch (Exception ex) {
+
+                        System.out.println("Presunto7");
                     } finally {
                         if (channel != null) {
                             try {
                                 channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                            } catch (InterruptedException e) {
-                                System.err.println("Channel shutdown interrupted: " + e.getMessage());
+                            } catch (InterruptedException ex) {
+
+                                System.out.println("Presunto9");
                             }
                         }
                     }
@@ -742,12 +731,15 @@ public class RpcClient {
 
             futureResult.complete(success);
 
+            System.out.println("Presunto10");
         }).exceptionally(ex -> {
-            System.err.println("Error during findNode: " + ex.getMessage());
+
+            System.out.println("Presunto11");
             futureResult.complete(false);
             return null;
         });
 
+        System.out.println("Presunto12");
         return futureResult;
     }
 

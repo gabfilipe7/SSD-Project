@@ -55,9 +55,7 @@ public class Main {
             } else if (arg.startsWith("--port=")) {
                 try {
                     port = Integer.parseInt(arg.split("=")[1]);
-                } catch (NumberFormatException e) {
-                    System.out.println("Invalid port number. Using default port 5000.");
-                }
+                } catch (NumberFormatException ignored) {}
             }
         }
 
@@ -73,10 +71,7 @@ public class Main {
         if (Authentication.keysExist()) {
             try {
                 keys = Authentication.loadKeyPair(algorithm);
-                System.out.println("Loaded keys from file.");
-            } catch (Exception e) {
-                System.err.println("Failed to load keys, generating new keys.");
-            }
+            } catch (Exception ignored) {}
         }
 
         this.LocalNode = new Node("127.0.0.1",port,20,isBootstrap,keys);
@@ -107,8 +102,6 @@ public class Main {
         this.RpcClient.synchronizeBlockchain();
         this.LocalNode.calculateLocalNodeBalance(Blockchain);
 
-        System.out.println("My id is " + LocalNode.getId().toString());
-
         while (true) {
             System.out.println("Welcome to the auction manager!");
             System.out.println("----------------------");
@@ -116,7 +109,6 @@ public class Main {
             System.out.println("(2) List auctions");
             System.out.println("(3) Place Bid");
             System.out.println("(4) Close Auction");
-            System.out.println("(5) Show Mempool");
             System.out.println("(6) Print Blockchain");
             System.out.println("(7) Subscribe to auction");
             System.out.println("(8) Check your balance");
@@ -182,8 +174,7 @@ public class Main {
         String newAuctionJson = gson.toJson(newAuction);
         LocalNode.addKey(key, newAuctionJson);
         System.out.printf("The auction for the product %s was created successfully.%n", productName);
-        System.out.println("Chave:" + new BigInteger(key,16));
-        RpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
+       RpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.AUCTION,newAuctionJson);
                 RpcClient.store(node.getIpAddress(),node.getPort(),key,gson.toJson(value));
@@ -271,7 +262,8 @@ public class Main {
 
         String key = sha256("auction-info:" +  myAuctions.get(selection).getAuctionId());
 
-        Set<String> auction = RpcClient.findValue(key, 10).orElse(new HashSet<>());
+     //   Set<String> auction = RpcClient.findValue(key, 10).orElse(new HashSet<>());
+        Set<String> auction = LocalNode.getValues(key);
 
         if(auction.isEmpty()){
             System.out.print("That auction is not available anymore.");
@@ -279,6 +271,8 @@ public class Main {
         }
 
         String auctionJson = auction.iterator().next();
+
+
 
         Auction selectedAuction = gson.fromJson(auctionJson, Auction.class);
 
@@ -289,12 +283,17 @@ public class Main {
         RpcClient.findNode(new BigInteger(key, 16)).thenAccept(nodes -> {
             for (Node node : nodes) {
                 StoreValue value = new StoreValue(StoreValue.Type.CLOSE, selectedAuction.getAuctionId().toString());
-                RpcClient.store(node.getIpAddress(), node.getPort(), "auction-close" + selectedAuction.getAuctionId().toString(), gson.toJson(value));
+                RpcClient.store(node.getIpAddress(), node.getPort(), sha256("auction-close" + selectedAuction.getAuctionId().toString()), gson.toJson(value));
             }
             System.out.println("Auction closed successfully.");
 
             Bid winningBid = selectedAuction.getWinningBid().orElse(null);
             if (winningBid != null) {
+                System.out.println("ALL bids:");
+                for(Bid bid :selectedAuction.getbids()){
+                    System.out.println(bid.getAmount() + " - " + bid.getBidder());
+                }
+                System.out.println("WInning bid is " + winningBid.getAmount());
                 RpcClient.findNode(winningBid.getBidder()).thenAccept(closeToWinner -> {
                     for (Node node : closeToWinner) {
                         if (node.getId().equals(winningBid.getBidder())) {
@@ -395,7 +394,6 @@ public class Main {
         Bid bid = new Bid(selectedAuction.getAuctionId(), this.LocalNode.getId(), bidValue, Instant.now());
         String bidJson = gson.toJson(bid);
         String storeKey = sha256("bid:" + selectedAuction.getAuctionId());
-        System.out.println("Chave Bid: " + storeKey);
 
         LocalNode.addKey(storeKey, bidJson);
         RpcClient.findNode(new BigInteger(sha256("auction-info:" + selectedAuction.getAuctionId()), 16)).thenAccept(nodes -> {
@@ -416,17 +414,13 @@ public class Main {
         for (Node bootstrap : bootstrapNodes) {
             if(!bootstrap.getId().equals(LocalNode.getId()))
             {
-                System.out.println("Attempting to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-                boolean connected = RpcClient.ping(bootstrap);
+               boolean connected = RpcClient.ping(bootstrap);
                 Reputation reputation = new Reputation(0.7,Instant.now());
                 reputation.generateId();
                 LocalNode.ReputationMap.put(bootstrap.getId(),reputation);
                 if (connected) {
                     this.LocalNode.addNode(bootstrap);
                     this.RpcClient.findNode(bootstrap.getId());
-                    System.out.println("Successfully connected to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
-                } else {
-                    System.out.println("Failed to connect to bootstrap node at " + bootstrap.getIpAddress() + ":" + bootstrap.getPort());
                 }
             }
         }
@@ -439,10 +433,7 @@ public class Main {
                         .addService(this.RpcServer)
                         .build();
 
-                System.out.println("Starting gRPC server on port " + this.LocalNode.getPort() + "...");
                 server.start();
-                System.out.println("Server started successfully!");
-
 
                 server.awaitTermination();
             } catch (IOException | InterruptedException e) {
@@ -451,14 +442,6 @@ public class Main {
         }).start();
 
 
-        try {
-            System.out.println("Waiting for 4 seconds before continuing...");
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            System.err.println("Thread sleep interrupted: " + e.getMessage());
-        }
-
-        System.out.println("4 seconds passed. Now continuing with the next steps...");
     }
 
     private void subscribeAuction(){
@@ -475,8 +458,6 @@ public class Main {
     }
 
     public void refreshRoutingTable() {
-        System.out.println("Refreshing routing table...");
-
         for (int i = 0; i < 5; i++) {
             BigInteger randomId = Utils.Utils.generateRandomNodeId();
             RpcClient.findNodeAndUpdateRoutingTable(randomId);

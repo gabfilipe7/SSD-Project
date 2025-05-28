@@ -4,6 +4,7 @@ import Auction.AuctionMapEntry;
 import Auction.Auction;
 import Auction.Bid;
 import Blockchain.Blockchain;
+import Blockchain.Transaction;
 import Communications.RpcClient;
 import Communications.RpcServer;
 import Identity.Reputation;
@@ -13,14 +14,28 @@ import Identity.Authentication;
 import Utils.InstantAdapter;
 import Utils.PublicKeyAdapter;
 import Utils.StoreValue;
+import Utils.Utils;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
+import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.netty.shaded.io.netty.handler.ssl.util.SelfSignedCertificate;
+
+import javax.net.ssl.TrustManagerFactory;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.KeyPair;
+import java.security.KeyStore;
 import java.security.PublicKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -86,7 +101,6 @@ public class Main {
         Scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 30, TimeUnit.SECONDS);
         Scheduler.scheduleAtFixedRate(() -> pingBuckets(), 0, 30, TimeUnit.SECONDS);
 
-
 /*
         if(port==5000){
             isBootstrap = true;
@@ -119,6 +133,7 @@ public class Main {
             System.out.println("  7) Subscribe to Auction");
             System.out.println("  8) Check Your Balance");
             System.out.println("  9) Check Reputation Table");
+            System.out.println("  10) Check Transaction");
  //           System.out.println(" 10) Print Neighbours");
             System.out.println(" 11) Exit");
 
@@ -155,7 +170,7 @@ public class Main {
                     showPeerReputations();
                     break;
                 case 10:
-                    LocalNode.printAllNeighbours();
+                    checkTransactions();
                     break;
                 case 11:
                     System.out.println("Exiting...");
@@ -456,19 +471,50 @@ public class Main {
 
         new Thread(() -> {
             try {
-                Server server = ServerBuilder.forPort(this.LocalNode.getPort())
+                SelfSignedCertificate ssc = new SelfSignedCertificate();
+
+                SslContext serverSslCtx = GrpcSslContexts
+                        .forServer(ssc.certificate(), ssc.privateKey())
+                        .build();
+
+                Server server = NettyServerBuilder.forPort(this.LocalNode.getPort())
+                        .sslContext(serverSslCtx)
                         .addService(this.RpcServer)
                         .build();
 
-                server.start();
+                System.out.println("gRPC Server started with TLS on port " + this.LocalNode.getPort());
 
+                server.start();
                 server.awaitTermination();
+
             } catch (IOException | InterruptedException e) {
                 System.err.println("Error while starting the gRPC server: " + e.getMessage());
+            } catch (CertificateException e) {
+                throw new RuntimeException(e);
             }
         }).start();
+    }
 
+    public static SslContext createClientSslContext(String trustedCertPath) throws Exception {
+        // Load the trusted certificate (server's certificate)
+        File certFile = new File(trustedCertPath);
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        X509Certificate trustedCert;
+        try (InputStream in = new FileInputStream(certFile)) {
+            trustedCert = (X509Certificate) cf.generateCertificate(in);
+        }
 
+        // Create a TrustManager that trusts this specific cert
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("trustedCert", trustedCert);
+        trustManagerFactory.init(keyStore);
+
+        // Build SSL context
+        return GrpcSslContexts.forClient()
+                .trustManager(trustManagerFactory)
+                .build();
     }
 
 
@@ -529,7 +575,7 @@ public class Main {
 
     public void refreshRoutingTable() {
         for (int i = 0; i < 5; i++) {
-            BigInteger randomId = Utils.Utils.generateRandomNodeId();
+            BigInteger randomId = Utils.generateRandomNodeId();
             RpcClient.findNodeAndUpdateRoutingTable(randomId);
         }
     }
@@ -586,6 +632,39 @@ public class Main {
             }
         }
     }
+
+    public void checkTransactions() {
+        System.out.println("Insert the ID of the transaction you wish to check: ");
+        UUID transactionId = UUID.fromString(Scanner.nextLine());
+        Transaction tr = Blockchain.getTransactionById(transactionId).orElse(null);
+
+        if (tr == null) {
+            System.out.println("No transaction found with that ID.");
+        } else {
+            System.out.println("\n─────────────────────────────────────────────────────────────");
+            System.out.println("                Transaction Details");
+            System.out.println("─────────────────────────────────────────────────────────────");
+            System.out.printf("%-20s: %s\n", "Transaction ID", tr.getTransactionId());
+            if (tr.getTimestamp() != null)
+                System.out.printf("%-20s: %s\n", "Timestamp", tr.getTimestamp());
+            if (tr.getSender() != null && tr.getType().equals(Transaction.TransactionType.AuctionPayment))
+            System.out.printf("%-20s: %s\n", "Buyer ID", new BigInteger(sha256(tr.getSender().getEncoded()), 16).toString());
+
+            if (tr.getAuctionOwnerId() != null)
+                System.out.printf("%-20s: %s\n", "Auction Owner ID", tr.getAuctionOwnerId());
+            if (tr.getMiner() != null)
+                System.out.printf("%-20s: %s\n", "Miner", tr.getMiner());
+            if (tr.getType() != null)
+                System.out.printf("%-20s: %s\n", "Type", tr.getType());
+            if (tr.getAmount() != null)
+                System.out.printf("%-20s: %.2f coins\n", "Amount", tr.getAmount());
+            if (tr.getAuctionId() != null)
+                System.out.printf("%-20s: %s\n", "Auction ID", tr.getAuctionId());
+
+            System.out.println("─────────────────────────────────────────────────────────────");
+        }
+    }
+
 
     public void printBids(){
         Set<String> auctionList = RpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>());

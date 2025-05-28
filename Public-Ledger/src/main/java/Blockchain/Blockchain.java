@@ -130,6 +130,17 @@ public class Blockchain {
         return true;
     }
 
+    public Optional<Transaction> getTransactionById(UUID transactionId) {
+        for (Block block : Chain) {
+            for (Transaction tr : block.getTransactions()) {
+                if (tr.getTransactionId().equals(transactionId)) {
+                    return Optional.of(tr);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     public void addNewBlock(Block block) {
         this.Chain.add(block);
     }

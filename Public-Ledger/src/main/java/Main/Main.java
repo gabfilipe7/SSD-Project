@@ -23,6 +23,7 @@ import java.security.KeyPair;
 import java.security.PublicKey;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -103,24 +104,27 @@ public class Main {
         this.LocalNode.calculateLocalNodeBalance(Blockchain);
 
         while (true) {
-            System.out.println("Welcome to the auction manager!");
-            System.out.println("----------------------");
-            System.out.println("(1) Create Auction");
-            System.out.println("(2) List auctions");
-            System.out.println("(3) Place Bid");
-            System.out.println("(4) Close Auction");
-            System.out.println("(6) Print Blockchain");
-            System.out.println("(7) Subscribe to auction");
-            System.out.println("(8) Check your balance");
-            System.out.println("(9) Check the reputation table");
-            System.out.println("(10) Print neighbours");
-            System.out.println("(11) Exit");
-            System.out.println("----------------------");
-            System.out.print("Select an option:");
+            System.out.println("\n===============================");
+            System.out.println(" Welcome to the Auction Manager");
+            System.out.println("===============================\n");
+            System.out.println("Please select an option:\n");
 
+            System.out.println("  1) Create Auction");
+            System.out.println("  2) List Auctions");
+            System.out.println("  3) Place a Bid");
+            System.out.println("  4) Close Auction");
+            System.out.println("  5) Print Bids");
+            System.out.println("  6) Print Blockchain");
+            System.out.println("  7) Subscribe to Auction");
+            System.out.println("  8) Check Your Balance");
+            System.out.println("  9) Check Reputation Table");
+ //           System.out.println(" 10) Print Neighbours");
+            System.out.println(" 11) Exit");
+
+            System.out.print("\nYour choice:");
             int choice = this.Scanner.nextInt();
             Scanner.nextLine();
-
+            System.out.print("\n");
             switch (choice) {
                 case 1:
                     createAuction();
@@ -135,8 +139,7 @@ public class Main {
                     closeAuction();
                     break;
                 case 5:
-                    System.out.println("Printing Mempool");
-                    this.Blockchain.printMempoolValues();
+                    printBids();
                     break;
                 case 6:
                     Blockchain.print();
@@ -155,7 +158,8 @@ public class Main {
                     break;
                 case 11:
                     System.out.println("Exiting...");
-                    return;
+                    System.exit(0);
+                    break;
 
                 default:
                     System.out.println("Invalid option. Try again.");
@@ -164,16 +168,15 @@ public class Main {
     }
 
     private void createAuction(){
-        System.out.println("Creating Auction!");
+        System.out.println("\nCreating Auction!");
         System.out.println("----------------------");
         System.out.print("Insert the product you pretend to auction:");
         String productName = this.Scanner.nextLine();
-        System.out.println("----------------------");
         Auction newAuction = this.LocalNode.createAuction(productName, Instant.now());
         String key = sha256("auction-info:" + newAuction.getAuctionId());
         String newAuctionJson = gson.toJson(newAuction);
         LocalNode.addKey(key, newAuctionJson);
-        System.out.printf("The auction for the product %s was created successfully.%n", productName);
+        System.out.printf("\nThe auction for the product %s was created successfully.%n", productName);
        RpcClient.findNode(new BigInteger(key,16)).thenAccept(nodes -> {
             for(Node node : nodes){
                 StoreValue value = new StoreValue(StoreValue.Type.AUCTION,newAuctionJson);
@@ -206,19 +209,19 @@ public class Main {
             return;
         }
 
-        System.out.println("This is the list of currently listed auctions:");
-        System.out.println("---------------------------------------------------------------");
+        System.out.println("This is the list of currently active auctions:");
+        System.out.println("------------------------------------------------------------------------------------------------------------------------------------");
 
-        System.out.printf("%-5s | %-30s | %-36s%n", "No.", "Item", "Auction ID");
-        System.out.println("---------------------------------------------------------------");
+        System.out.printf("%-80s | %-10s | %-36s%n", "Owner", "Item", "Auction ID");
+        System.out.println("------------------------------------------------------------------------------------------------------------------------------------");
 
         int count = 0;
         for (AuctionMapEntry auction : auctions) {
-            System.out.printf("%-5d | %-30s | %-36s%n", count, auction.getItemName(), auction.getAuctionId());
+            System.out.printf("%-80d | %-10s | %-36s%n", auction.getOwnerNode(), auction.getItemName(), auction.getAuctionId());
             count++;
         }
 
-        System.out.println("---------------------------------------------------------------");
+        System.out.println("------------------------------------------------------------------------------------------------------------------------------------");
         System.out.print("Press Enter to return to the menu...");
         Scanner.nextLine();
     }
@@ -227,24 +230,30 @@ public class Main {
     private void closeAuction() {
         Set<String> auctionList = RpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>()) ;
 
+        System.out.println("This is the list of active auctions owned by you:");
+        System.out.println("-----------------------------------------------------------------");
+        System.out.printf(" %-15s | %-36s%n", "  Item", "Auction ID");
+        System.out.println("-----------------------------------------------------------------");
+
 
         List<AuctionMapEntry> myAuctions = new ArrayList<>();
         int index = 0;
         for (String json : auctionList) {
             AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
             if (auction != null && auction.getOwnerNode().equals(LocalNode.getId())) {
-                System.out.println(index + ": " + auction.getAuctionId() + " | Item: " + auction.getItemName());
+                System.out.printf(index + ": " + "%-13s | %-36s%n", auction.getItemName(), auction.getAuctionId());
+                System.out.println("-----------------------------------------------------------------");
                 myAuctions.add(auction);
                 index++;
             }
         }
 
         if (myAuctions.isEmpty()) {
-            System.out.println("No active auctions found that you can close.");
+            System.out.println("\nNo active auctions found that you can close.");
             return;
         }
 
-        System.out.print("Select the auction number you want to close (0-" + (myAuctions.size() - 1) + "): ");
+        System.out.print("\nSelect the auction number you want to close (0-" + (myAuctions.size() - 1) + "): ");
         int selection = -1;
         while (true) {
             try {
@@ -266,7 +275,7 @@ public class Main {
         Set<String> auction = LocalNode.getValues(key);
 
         if(auction.isEmpty()){
-            System.out.print("That auction is not available anymore.");
+            System.out.print("\nThat auction is not available anymore.");
             return;
         }
 
@@ -278,14 +287,15 @@ public class Main {
 
 
         selectedAuction.closeAuction();
-        System.out.println("Closing auction: " + selectedAuction.getAuctionId());
 
-        RpcClient.findNode(new BigInteger(key, 16)).thenAccept(nodes -> {
+        CompletableFuture<List<Node>> future = RpcClient.findNode(new BigInteger(key, 16));
+
+        CompletableFuture<Void> closeAuction = future.thenAccept(nodes -> {
             for (Node node : nodes) {
                 StoreValue value = new StoreValue(StoreValue.Type.CLOSE, selectedAuction.getAuctionId().toString());
                 RpcClient.store(node.getIpAddress(), node.getPort(), sha256("auction-close" + selectedAuction.getAuctionId().toString()), gson.toJson(value));
             }
-            System.out.println("Auction closed successfully.");
+            System.out.println("\nAuction closed successfully.");
 
             Bid winningBid = selectedAuction.getWinningBid().orElse(null);
             if (winningBid != null) {
@@ -303,6 +313,10 @@ public class Main {
                 });
             }
         });
+
+        try {
+            closeAuction.get();
+        } catch (Exception ignored) {}
 
         String globalCatalogKey = sha256("auction-global-catalog");
         AuctionMapEntry entry = new AuctionMapEntry(selectedAuction.getAuctionId(), selectedAuction.getItem(), selectedAuction.getOwner());
@@ -325,12 +339,18 @@ public class Main {
             return;
         }
 
+        System.out.println("This is the list of currently active auctions:");
+        System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
+        System.out.printf("%-83s | %-10s | %-36s%n", "   Owner", "Item", "Auction ID");
+        System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
+
         List<AuctionMapEntry> auctions = new ArrayList<>();
         int index = 0;
         for (String json : values) {
             AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
             if (auction != null) {
-                System.out.println(index + ": " + auction.getAuctionId() + " | Item: " + auction.getItemName() + " | Owner: " + auction.getOwnerNode());
+                System.out.printf(index + ": " + "%-80d | %-10s | %-36s%n", auction.getOwnerNode(), auction.getItemName(), auction.getAuctionId());
+                System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
                 auctions.add(auction);
                 index++;
             }
@@ -341,7 +361,7 @@ public class Main {
             return;
         }
 
-        System.out.print("Select the auction number you want to bid on (0-" + (auctions.size() - 1) + "): ");
+        System.out.print("\nSelect the auction number you want to bid on (0-" + (auctions.size() - 1) + "): ");
         int selection = -1;
         while (true) {
             try {
@@ -374,7 +394,7 @@ public class Main {
             return;
         }
 
-        System.out.print("Insert the value of the bid for the item " + selectedAuction.getItem() + ": ");
+        System.out.print("\nInsert the value of the bid for the item " + selectedAuction.getItem() + ": ");
         double bidValue = 0;
         while (true) {
             try {
@@ -396,13 +416,22 @@ public class Main {
         String storeKey = sha256("bid:" + selectedAuction.getAuctionId());
 
         LocalNode.addKey(storeKey, bidJson);
-        RpcClient.findNode(new BigInteger(sha256("auction-info:" + selectedAuction.getAuctionId()), 16)).thenAccept(nodes -> {
+
+        CompletableFuture<List<Node>> future = RpcClient.findNode(
+                new BigInteger(sha256("auction-info:" + selectedAuction.getAuctionId()), 16)
+        );
+
+        CompletableFuture<Void> bidPlacement = future.thenAccept(nodes -> {
             for (Node node : nodes) {
                 StoreValue value = new StoreValue(StoreValue.Type.BID, bidJson);
                 RpcClient.store(node.getIpAddress(), node.getPort(), storeKey, gson.toJson(value));
             }
-            System.out.println("Bid placed successfully.");
+            System.out.println("\nBid placed successfully.");
         });
+
+        try {
+            bidPlacement.get();
+        } catch (Exception ignored) {}
     }
 
     private void connectToBootstrapNodes() {
@@ -443,29 +472,23 @@ public class Main {
 
 
     }
-/*
-    private void subscribeAuction(){
-        System.out.println("Insert the Id of the auction you wish to subscribe: ");
-        String auctionIdInput = this.Scanner.nextLine();
-        String subscribeKey = sha256("auction-subs:" + auctionIdInput);
-        String auctionKey = sha256("auction-info:" + auctionIdInput);
-        RpcClient.findNode(new BigInteger(auctionKey,16)).thenAccept(nodes -> {
-            for(Node node : nodes){
-                StoreValue value = new StoreValue(StoreValue.Type.SUBSCRIPTION ,LocalNode.getId().toString());
-                RpcClient.store(node.getIpAddress(),node.getPort(),subscribeKey,gson.toJson(value));
-            }
-        });
-    }*/
+
 
     private void subscribeAuction() {
         Set<String> auctionList = RpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>());
+
+        System.out.println("This is the list of currently active auctions:");
+        System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
+        System.out.printf("%-83s | %-10s | %-36s%n", "   Owner", "Item", "Auction ID");
+        System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
 
         List<AuctionMapEntry> auctions = new ArrayList<>();
         int index = 0;
         for (String json : auctionList) {
             AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
             if (auction != null) {
-                System.out.println(index + ": " + auction.getAuctionId() + " | Item: " + auction.getItemName());
+                System.out.printf(index + ": " + "%-80d | %-10s | %-36s%n", auction.getOwnerNode(), auction.getItemName(), auction.getAuctionId());
+                System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
                 auctions.add(auction);
                 index++;
             }
@@ -514,9 +537,13 @@ public class Main {
     }
 
     public void showBalance() {
-        System.out.println();
-        System.out.println("Your current balance is: " + LocalNode.getBalance() + " tokens");
+        System.out.println("\n-------------------------------");
+        System.out.println("         Your Balance");
+        System.out.printf("         %s coins\n", LocalNode.getBalance());
+        System.out.println("-------------------------------\n");
     }
+
+
     public void showPeerReputations() {
 
         System.out.println();
@@ -525,19 +552,19 @@ public class Main {
             return;
         }
 
-        System.out.println("Peer Reputations:");
-        System.out.println("----------------------------------------------------------------------------------------------");
-        System.out.printf("%-40s                                      | %-10s%n", "Peer ID", "Reputation");
-        System.out.println("---------------------------------------------------------------------------------------------");
+        System.out.println("This is the list of your peers' reputations:\n");
+        System.out.println("--------------------------------------------------------------------------------------------");
+        System.out.printf("%-40s                                       | %-10s%n", "Peer ID", "Reputation");
+        System.out.println("--------------------------------------------------------------------------------------------");
 
         for (Map.Entry<BigInteger, Reputation> entry : LocalNode.ReputationMap.entrySet()) {
             BigInteger peerId = entry.getKey();
             Reputation reputation = entry.getValue();
 
-            System.out.printf("%-40s | %-10s%n", peerId, reputation.getScore());
+            System.out.printf("%-78s | %-10s%n", peerId, reputation.getScore());
         }
 
-        System.out.println("---------------------------------------------------------------------------------------------");
+        System.out.println("--------------------------------------------------------------------------------------------");
         System.out.print("Press Enter to return to menu...");
         Scanner.nextLine();
     }
@@ -560,6 +587,65 @@ public class Main {
                 }
             }
         }
+    }
+
+    public void printBids(){
+        Set<String> auctionList = RpcClient.findValue(sha256("auction-global-catalog"), 10).orElse(new HashSet<>());
+        System.out.println("This is the list of currently active auctions:");
+        System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
+        System.out.printf("%-83s | %-10s | %-36s%n", "   Owner", "Item", "Auction ID");
+        System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
+
+        List<AuctionMapEntry> auctions = new ArrayList<>();
+        int index = 0;
+        for (String json : auctionList) {
+            AuctionMapEntry auction = gson.fromJson(json, AuctionMapEntry.class);
+            if (auction != null) {
+                System.out.printf(index + ": " + "%-80d | %-10s | %-36s%n", auction.getOwnerNode(), auction.getItemName(), auction.getAuctionId());
+                System.out.println("---------------------------------------------------------------------------------------------------------------------------------------");
+                auctions.add(auction);
+                index++;
+            }
+        }
+
+        if (auctions.isEmpty()) {
+            System.out.println("No active auctions available");
+            return;
+        }
+
+        System.out.print("Select the auction number you want to see the bids of (0-" + (auctions.size() - 1) + "): ");
+        int selection = -1;
+        while (true) {
+            try {
+                selection = Integer.parseInt(Scanner.nextLine());
+                if (selection < 0 || selection >= auctions.size()) {
+                    System.out.println("Invalid selection. Please choose a valid auction number:");
+                } else {
+                    break;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number:");
+            }
+        }
+
+        AuctionMapEntry selectedAuction = auctions.get(selection);
+        System.out.println("\nThis is the list of bids");
+        System.out.println("------------------------------------------------------------------------------------------");
+        System.out.printf("%-10s | %-20s\n", "Amount", "Bidder");
+        System.out.println("------------------------------------------------------------------------------------------");
+
+        String bidsKey = sha256("bid:" + selectedAuction.getAuctionId());
+        Set<String> values = RpcClient.findValue(bidsKey, 10).orElse(new HashSet<>()) ;
+        for (String bidjson : values) {
+            Bid bid = gson.fromJson(bidjson, Bid.class);
+            String amountStr = String.format("%.2f", bid.getAmount());
+            String bidderStr = String.valueOf(bid.getBidder());
+
+            System.out.printf("%-10s | %-20s\n", amountStr, bidderStr);
+            System.out.println("------------------------------------------------------------------------------------------");
+
+        }
+
     }
 
 

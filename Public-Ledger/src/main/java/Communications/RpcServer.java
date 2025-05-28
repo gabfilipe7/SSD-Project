@@ -388,7 +388,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
     @Override
     public void sendPaymentRequest(PaymentRequest request, StreamObserver<PaymentRequestResponse> responseObserver) {
-        System.out.println("Recebi !!");
         String toNodeId = request.getAuctionWinnerId();
         if (!toNodeId.equals(this.LocalNode.getId().toString())) {
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
@@ -397,7 +396,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         }
 
         double amount = request.getAmount();
-        System.out.println("Recebi pedido de pagamento "+ amount);
         String auctionId = request.getAuctionId();
 
         String key = sha256("bid:" + auctionId);
@@ -419,7 +417,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
 
         if(maxBidValue != amount){
-            System.out.println("CHeira a esturro");
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
             responseObserver.onCompleted();
             return;
@@ -433,11 +430,9 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             transaction.signTransaction(this.LocalNode.getPrivateKey());
 
-            System.out.println("Vou pagar agora");
             RpcClient.pay(transaction, transaction.getSignature()).thenAccept(success -> {
                 if (success) {
                     this.LocalNode.updateBalance(-amount);
-                    System.out.println("paguei");
                 } else {
                     System.out.println("Payment failed");
                 }
@@ -598,8 +593,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 return;
             }
 
-            System.out.println("Bidé2");
-
             assembledTransaction.setSignature(request.getSignature().toByteArray());
             double score = assembledTransaction.validateTransaction();
             if (score == 1) {
@@ -706,9 +699,18 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     }
 
     public void handleBid(String key, String payload){
+        Bid bid = gson.fromJson(payload, Bid.class);
+
+        Set<Bid> bids =   LocalNode.getValues(key).stream()
+                .map(json -> gson.fromJson(json, Bid.class))
+                .collect(Collectors.toSet());
+
+        if(bids.stream().anyMatch(b -> b.getAmount() == bid.getAmount() && b.getBidder().equals(bid.getBidder()))){
+            return;
+        };
+
         LocalNode.addKey(key, payload);
 
-        Bid bid = gson.fromJson(payload, Bid.class);
         String auctionKey = sha256("auction-info:" + bid.getAuctionId());
 
         Set<String> auctionValue = LocalNode.getValues(auctionKey);
@@ -728,14 +730,20 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
-        RpcClient.publishAuctionBid(bid.getAuctionId(), key, payload);
-
         if(SubscribedAuctions.contains(bid.getAuctionId())){
             System.out.println("Someone placed a bid of " + bid.getAmount() + " on auction '" + bid.getAuctionId() + "'.");
         }
+
+        RpcClient.publishAuctionBid(bid.getAuctionId(), key, payload);
+
     }
 
     public void handleClose(String key, String payload) {
+
+        if(!LocalNode.getValues(key).isEmpty()){
+            return;
+        };
+
         LocalNode.addKey(key, payload);
 
         String auctionKey = sha256("auction-info:" + payload);
@@ -755,6 +763,11 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         String auctionJsonUpdated = gson.toJson(auction);
 
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
+
+        if(SubscribedAuctions.contains(auction.getAuctionId())){
+            System.out.println("The owner closed the auction " + auction.getAuctionId() + "for the item " + auction.getItem());
+        }
+
 
         RpcClient.publishAuctionClose(key, payload);
     }

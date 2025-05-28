@@ -290,7 +290,6 @@ public class Node {
 
         for (Block block : blockchain.getChain()) {
             for (Transaction tx : block.getTransactions()) {
-                System.out.println(tx);
                 if (tx.getSender() != null && tx.getSender().equals(getPublicKey()) && (tx.getType().equals(Transaction.TransactionType.AuctionPayment))) {
                     balance -= tx.getAmount();
                 }

@@ -45,9 +45,6 @@ public class RpcClient {
         this.LocalNode = localNode;
         this.Blockchain = blockchain;
         this.ExecutorService = Executors.newFixedThreadPool(10);
-
-        String currentDir = System.getProperty("user.dir");
-        System.out.println("Current working directory: " + currentDir);
     }
 
     public boolean ping(Node peer) {

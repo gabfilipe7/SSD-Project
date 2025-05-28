@@ -20,15 +20,11 @@ import com.google.gson.GsonBuilder;
 import io.grpc.Server;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
-import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
-import io.grpc.netty.shaded.io.netty.handler.ssl.util.SelfSignedCertificate;
-
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.PublicKey;
-import java.security.cert.CertificateException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -453,21 +449,8 @@ public class Main {
         new Thread(() -> {
             try {
 
-                String currentDir = System.getProperty("user.dir");
-                System.out.println("Current working directory: " + currentDir);
-                File batata1 = new File("server.crt");
-                File batata2 = new File("server.key");
-                if (!batata1.exists() || !batata1.canRead()) {
-
-                    System.out.println("Rambo2");
-                    throw new RuntimeException("Certificate file not found or not readable: " + batata1);
-                }
-                if (!batata2.exists() || !batata2.canRead()) {
-                    System.out.println("Rambo");
-                    throw new RuntimeException("Certificate file not found or not readable: " + batata1);
-                }
                 Server server = NettyServerBuilder.forPort(LocalNode.getPort())
-                        .sslContext(GrpcSslContexts.forServer(batata1, batata2)
+                        .sslContext(GrpcSslContexts.forServer( new File("server.crt"),  new File("server.key"))
                                 .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                                 .build())
                         .addService(this.RpcServer)

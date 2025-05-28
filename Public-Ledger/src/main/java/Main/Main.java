@@ -51,7 +51,7 @@ public class Main {
 
     public static void main(String[] args) {
         boolean isBootstrap = false;
-        int port = 5002;
+        int port = 0;
 
         for (String arg : args) {
             if (arg.equalsIgnoreCase("--bootstrap")) {
@@ -71,7 +71,6 @@ public class Main {
         KeyPair keys = null;
         String algorithm = "RSA";
 
-
         if (Authentication.keysExist()) {
             try {
                 keys = Authentication.loadKeyPair(algorithm);
@@ -87,8 +86,8 @@ public class Main {
         this.RpcClient = new RpcClient(LocalNode, Blockchain);
         this.RpcServer.RpcClient = this.RpcClient;
         this.Blockchain.createGenesisBlock();
-        Scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 30, TimeUnit.SECONDS);
-        Scheduler.scheduleAtFixedRate(() -> pingBuckets(), 0, 30, TimeUnit.SECONDS);
+        Scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 5, TimeUnit.MINUTES);
+        Scheduler.scheduleAtFixedRate(() -> pingBuckets(), 0, 1, TimeUnit.MINUTES);
 
         this.connectToBootstrapNodes();
 
@@ -462,8 +461,6 @@ public class Main {
                         .sslContext(serverSslCtx)
                         .addService(this.RpcServer)
                         .build();
-
-                System.out.println("gRPC Server started with TLS on port " + this.LocalNode.getPort());
 
                 server.start();
                 server.awaitTermination();

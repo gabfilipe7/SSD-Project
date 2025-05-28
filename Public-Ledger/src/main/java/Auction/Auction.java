@@ -35,8 +35,6 @@ public class Auction {
 
     public String getItem() { return ItemDescription; }
 
-    public Instant getStartTime() {return StartTime; }
-
     public UUID getAuctionId() { return AuctionId; }
 
     public boolean isClosed() { return IsClosed; }

@@ -131,14 +131,6 @@ public class Node {
         return allNeighbours;
     }
 
-    public void printAllNeighbours() {
-        List<Node> allNeighbours = getAllNeighbours();
-        System.out.println("All Neighbours:");
-        for (Node node : allNeighbours) {
-            System.out.println("Node ID: " + node.getId());
-        }
-    }
-
     public boolean containsNode(BigInteger nodeId) {
         for (KBucket bucket : RoutingTable) {
             for (Node node : bucket.getNodes()) {

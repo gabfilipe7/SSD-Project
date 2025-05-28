@@ -45,6 +45,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     private Set<UUID> ReputationIds = new HashSet<>();
     private Set<UUID> TransactionIds = new HashSet<>();
 
+
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
             .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
@@ -192,11 +193,53 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 transactions.add(gson.fromJson(tr,Transaction.class));
             }
 
-            if (receivedBlock.getBlockId() <= Blockchain.getLastBlock().getIndex()) {
+            if (receivedBlock.getBlockId() == Blockchain.getLastBlock().getIndex() && !receivedBlock.getHash().equals(Blockchain.getLastBlock().getBlockHash())  ) {
+
+                Block block = new Block(receivedBlock.getBlockId(),
+                        receivedBlock.getHash(),
+                        receivedBlock.getPreviousHash(),
+                        receivedBlock.getTimestamp(),
+                        transactions,
+                        receivedBlock.getNonce());
+
+                double score = Blockchain.verifyBlock(block);
+
+                if (score == 1) {
+                    if(block.getTimestamp() < Blockchain.getLastBlock().getTimestamp()){
+                        this.Blockchain.removeLastBlock();
+                        this.Blockchain.addNewBlock(block);
+                        responseObserver.onNext(GossipResponse.newBuilder().setSuccess(true).build());
+                        responseObserver.onCompleted();
+                    }
+                    else if (block.getTimestamp() == Blockchain.getLastBlock().getTimestamp()){
+
+                        BigInteger hash1 = new BigInteger(block.getBlockHash(), 16);
+                        BigInteger hash2 = new BigInteger(Blockchain.getLastBlock().getBlockHash(), 16);
+
+                        if (hash1.compareTo(hash2) < 0) {
+                            this.Blockchain.removeLastBlock();
+                            this.Blockchain.addNewBlock(block);
+                            responseObserver.onNext(GossipResponse.newBuilder().setSuccess(true).build());
+                            responseObserver.onCompleted();
+                        }
+                        else{
+                            responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
+                            responseObserver.onCompleted();
+                        }
+                    }
+                }
+                else{
+                    responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
+                    responseObserver.onCompleted();
+                }
+                return;
+            }
+            else if (receivedBlock.getBlockId() <= Blockchain.getLastBlock().getIndex()) {
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
                 return;
             }
+
             if (!Blockchain.contains(receivedBlock.getBlockId())) {
                 Block block = new Block(receivedBlock.getBlockId(),
                                     receivedBlock.getHash(),

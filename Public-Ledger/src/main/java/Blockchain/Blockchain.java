@@ -46,6 +46,23 @@ public class Blockchain {
         return 1;
     }
 
+    public static double verifyBlockWithoutBlockchain(Block block) {
+        for (Transaction tr : block.getTransactions()) {
+            if (tr.validateTransaction() != 1) {
+                return tr.validateTransaction();
+            }
+        }
+        String computedHash = block.calculateBlockHash();
+        if (!computedHash.equals(block.getBlockHash())) {
+            return 0.2;
+        }
+        if (!computedHash.startsWith("0".repeat(block.getDifficulty()))) {
+            return 0.1;
+        }
+        return 1;
+    }
+
+
     public List<Block> getBlocksFrom(long startIndex) {
         List<Block> result = new ArrayList<>();
         for (Block block : this.Chain) {
@@ -145,5 +162,10 @@ public class Blockchain {
     public Collection <Transaction> getMempoolValues() {
         return Mempool.values();
     }
+
+    public void removeLastBlock() {
+        Chain.remove(Chain.size() - 1);
+    }
+
 
 }

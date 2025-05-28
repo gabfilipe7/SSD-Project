@@ -20,6 +20,7 @@ public class Transaction {
     private Instant Timestamp;
     private PublicKey Sender;
     private BigInteger AuctionOwnerId;
+    private BigInteger Miner;
     private TransactionType Type;
     private byte[] Signature;
     private Double Amount;
@@ -42,19 +43,15 @@ public class Transaction {
 
     public double validateTransaction() {
         try {
-
             if (this.getTransactionId() == null) {
                 return 0.05;
             }
-
             if (this.getTimestamp() == null || this.getTimestamp().isAfter(java.time.Instant.now())) {
                 return 0.1;
             }
-
             if (this.getType() == null) {
                 return 0.05;
             }
-
             Security.addProvider(new BouncyCastleProvider());
             String data =
                     (TransactionId != null ? TransactionId.toString() : "") +
@@ -62,11 +59,11 @@ public class Transaction {
                             (Sender != null ? Base64.getEncoder().encodeToString(Sender.getEncoded()) : "") +
                             (Type != null ? Type.toString() : "") +
                             (AuctionId != null ? AuctionId.toString() : "") +
-                            (Amount != null ? Amount.toString() : "");
+                            (Amount != null ? Amount.toString() : "") +
+                            (Miner != null ? Miner.toString() : "");
 
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
-
             Signature verifier = java.security.Signature.getInstance("SHA256withRSA", "BC");
             verifier.initVerify(Sender);
             verifier.update(message);
@@ -96,7 +93,9 @@ public class Transaction {
                             (Sender != null ? Base64.getEncoder().encodeToString(Sender.getEncoded()) : "") +
                             (Type != null ? Type.toString() : "") +
                             (AuctionId != null ? AuctionId.toString() : "") +
-                            (Amount != null ? Amount.toString() : "");
+                            (Amount != null ? Amount.toString() : "") +
+                            (Miner != null ? Miner.toString() : "");
+
 
             byte[] message = data.getBytes(StandardCharsets.UTF_8);
 
@@ -110,6 +109,10 @@ public class Transaction {
         }
     }
 
+    public void setMiner(BigInteger minerId) {
+        this.Miner = minerId;
+    }
+
     public void setSignature(byte[] signature) {
         this.Signature = signature;
     }
@@ -119,6 +122,8 @@ public class Transaction {
     }
 
     public UUID getTransactionId() { return TransactionId; }
+
+    public BigInteger getMiner() { return Miner; }
 
     public Instant getTimestamp() { return Timestamp; }
 
@@ -149,6 +154,7 @@ public class Transaction {
                 ", senderPublicKey=" + (Sender != null ? Base64.getEncoder().encodeToString(Sender.getEncoded()) : "null") +
                 ", auctionId='" + (AuctionId != null ? AuctionId : "null") + '\'' +
                 ", bidAmount='" + (Amount != null ? Amount : "null") + '\'' +
+                ", miner='" + (Miner != null ? Miner : "null") + '\'' +
                 '}';
     }
 }

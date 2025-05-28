@@ -218,15 +218,13 @@ public class RpcClient {
 
             return nodes;
         } catch (Exception e) {
-            e.printStackTrace();
             return List.of();
         } finally {
             if (channel != null) {
                 channel.shutdown();
                 try {
                     channel.awaitTermination(3, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    System.err.println("Channel termination interrupted");
+                } catch (InterruptedException ignored) {
                 }
             }
         }
@@ -394,9 +392,7 @@ public class RpcClient {
                     .setBlockData(protoBlock)
                     .setSenderId(LocalNode.getId().toString())
                     .build();
-
         } catch (Exception e) {
-            System.err.println("Failed to convert Block to Protobuf: " + e.getMessage());
             return;
         }
 
@@ -413,21 +409,15 @@ public class RpcClient {
                         .gossipBlock(blockMessage);
 
                 if (response.getSuccess()) {
-                    System.out.println("Successfully gossiped block to " + neighbor.getId());
-                } else {
-                    System.out.println("Failed to gossip block to " + neighbor.getId());
+                    System.out.println("\n Successfully gossiped block to node: " + neighbor.getId());
                 }
 
-            } catch (StatusRuntimeException e) {
-                System.err.println("gRPC error while gossiping to " + neighbor.getId() + ": " + e.getStatus().getDescription());
-            } catch (Exception e) {
-                System.err.println("Error while gossiping to " + neighbor.getId() + ": " + e.getMessage());
+            } catch (Exception ignored) {
             } finally {
                 if (channel != null) {
                     try {
                         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        System.err.println("Channel shutdown interrupted: " + e.getMessage());
+                    } catch (InterruptedException ignored) {
                     }
                 }
             }
@@ -682,9 +672,7 @@ public class RpcClient {
                     .setSenderNodeId(LocalNode.getId().toString())
                     .build();
 
-            System.out.println("Presunto2");
         } catch (Exception e) {
-            System.out.println("Presunto1");
             futureResult.complete(false);
             return futureResult;
         }
@@ -692,13 +680,11 @@ public class RpcClient {
         findNode(transaction.getAuctionOwnerId()).thenAccept(closeToWinner -> {
             boolean success = false;
 
-            System.out.println("Presunto3");
             for (Node node : closeToWinner) {
                 if (node.getId().equals(transaction.getAuctionOwnerId())) {
                     ManagedChannel channel = null;
                     try {
 
-                        System.out.println("Presunto4");
                         channel = ManagedChannelBuilder.forAddress(node.getIpAddress(), node.getPort())
                                 .usePlaintext()
                                 .build();
@@ -710,19 +696,15 @@ public class RpcClient {
 
                         if (response.getSuccess()) {
 
-                            System.out.println("Presunto5");
                             success = true;
                         }
                     }catch (Exception ex) {
 
-                        System.out.println("Presunto7");
                     } finally {
                         if (channel != null) {
                             try {
                                 channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                            } catch (InterruptedException ex) {
-
-                                System.out.println("Presunto9");
+                            } catch (InterruptedException ignored) {
                             }
                         }
                     }
@@ -731,15 +713,12 @@ public class RpcClient {
 
             futureResult.complete(success);
 
-            System.out.println("Presunto10");
         }).exceptionally(ex -> {
 
-            System.out.println("Presunto11");
             futureResult.complete(false);
             return null;
         });
 
-        System.out.println("Presunto12");
         return futureResult;
     }
 

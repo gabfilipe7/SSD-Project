@@ -180,14 +180,12 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void gossipBlock(BlockMessage request, StreamObserver<GossipResponse> responseObserver) {
         try{
             com.kademlia.grpc.Block receivedBlock = request.getBlockData();
-
             Reputation senderReputation = LocalNode.ReputationMap.get(new BigInteger(request.getSenderId()));
             if (senderReputation == null || senderReputation.getScore() < 0.2) {
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
                 return;
             }
-
             List<Transaction> transactions = new ArrayList<>();
 
             for(String tr: request.getBlockData().getTransactionsList()){
@@ -199,7 +197,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                 responseObserver.onCompleted();
                 return;
             }
-
             if (!Blockchain.contains(receivedBlock.getBlockId())) {
                 Block block = new Block(receivedBlock.getBlockId(),
                                     receivedBlock.getHash(),
@@ -209,6 +206,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                                     receivedBlock.getNonce());
 
                 double score = Blockchain.verifyBlock(block);
+
                 if (score == 1) {
                     if(CurrentBlockMining != null){
                         if(Objects.equals(CurrentBlockMining.getPreviousBlockHash(), block.getPreviousBlockHash())){
@@ -280,7 +278,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         }
         catch (Exception e) {
-            e.printStackTrace();
             responseObserver.onError(e);
         }
     }
@@ -294,28 +291,22 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             switch (value.getType()) {
                 case AUCTION:
-                    System.out.println("Recieved new auction information.");
                     handleAuction(key, value.getPayload(), request.getSrc());
                     break;
 
                 case SUBSCRIPTION:
-                    System.out.println("Recieved new auction subscription.");
                     handleSubscription(key, value.getPayload());
                     break;
                 case BID:
-                    System.out.println("Recieved new bid.");
                     handleBid(key, value.getPayload());
                     break;
                 case CLOSE:
-                    System.out.println("Recieved auction closed.");
                     handleClose(key, value.getPayload());
                     break;
                 case ADD_CATALOG:
-                 //  System.out.println("Recieved catalog add.");
                     handleAddCatalog(key, value.getPayload());
                     break;
                 case REMOVE_CATALOG:
-                 //   System.out.println("Recieved catalog remove.");
                     handleRemoveCatalog(key, value.getPayload());
                     break;
             }
@@ -406,7 +397,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     try {
                         return gson.fromJson(json, Bid.class);
                     } catch (Exception e) {
-                        System.err.println("Failed to parse bid JSON: " + json);
                         return null;
                     }
                 })
@@ -433,8 +423,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             RpcClient.pay(transaction, transaction.getSignature()).thenAccept(success -> {
                 if (success) {
                     this.LocalNode.updateBalance(-amount);
-                } else {
-                    System.out.println("Payment failed");
                 }
             });
 
@@ -589,7 +577,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             if (senderReputation == null || senderReputation.getScore() < 0.2) {
                 responseObserver.onNext(GossipResponse.newBuilder().setSuccess(false).build());
                 responseObserver.onCompleted();
-                System.out.println("Bidé1");
                 return;
             }
 
@@ -597,7 +584,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             double score = assembledTransaction.validateTransaction();
             if (score == 1) {
 
-                System.out.println("Bidé3");
                 BigInteger nodeId =  new BigInteger(Utils.sha256(assembledTransaction.getSender().getEncoded()),16);
 
                 Reputation rep = this.LocalNode.ReputationMap.get(nodeId);
@@ -614,24 +600,21 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
                     this.LocalNode.ReputationMap.put(nodeId,rep);
                 }
 
-                System.out.println("Bidé5");
                 Reputation finalRep = rep;
                 byte[] signature = finalRep.signReputation(LocalNode.getPrivateKey(), nodeId);
                 CompletableFuture.runAsync(() -> {
                     RpcClient.gossipReputation(finalRep, nodeId, signature, LocalNode);
                 });
 
-                System.out.println("Bidé7");
                 if(assembledTransaction.getType() == Transaction.TransactionType.AuctionPayment && assembledTransaction.getAuctionOwnerId().equals(LocalNode.getId())){
                     this.LocalNode.updateBalance(assembledTransaction.getAmount());
-                    System.out.println("⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " for auction ID: " + assembledTransaction.getAuctionId());
+                    System.out.println("\n ⚠️  [WARNING] You received " + assembledTransaction.getAmount() + " for auction ID: " + assembledTransaction.getAuctionId());
 
                 }
                 RpcClient.gossipTransaction(assembledTransaction, request.getSignature().toByteArray(), new BigInteger(request.getSenderNodeId()));
                 manageMempool(assembledTransaction);
             } else{
 
-                System.out.println("Bidé8");
                 BigInteger nodeId = new BigInteger(Utils.sha256(assembledTransaction.getSender().toString()));
                 Reputation rep = this.LocalNode.ReputationMap.get(nodeId);
 
@@ -657,8 +640,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
             responseObserver.onNext(GossipResponse.newBuilder().setSuccess(score == 1).build());
             responseObserver.onCompleted();
         } catch (Exception e) {
-
-            System.out.println("Bidé9");
             responseObserver.onError(Status.INTERNAL.withDescription("Failed to process transaction").asRuntimeException());
         }
     }
@@ -666,7 +647,8 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void startMining(Block blockToMine) {
     IsMining = true;
 
-    Transaction transaction = new Transaction(Transaction.TransactionType.BlockMinedPayment,LocalNode.getPublicKey(),null,10.0 );
+    Transaction transaction = new Transaction(Transaction.TransactionType.BlockMinedPayment, LocalNode.getPublicKey(), null,10.0 );
+    transaction.setMiner(LocalNode.getId());
     transaction.signTransaction(LocalNode.getPrivateKey());
 
     blockToMine.addTransaction(transaction);
@@ -725,13 +707,12 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
         auction.placeBid(bid);
 
-        System.out.println("Received bid of value" + bid.getAmount());
         String auctionJsonUpdated = gson.toJson(auction);
 
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
         if(SubscribedAuctions.contains(bid.getAuctionId())){
-            System.out.println("Someone placed a bid of " + bid.getAmount() + " on auction '" + bid.getAuctionId() + "'.");
+            System.out.println("\nSomeone placed a bid of " + bid.getAmount() + " on auction '" + bid.getAuctionId() + "'.");
         }
 
         RpcClient.publishAuctionBid(bid.getAuctionId(), key, payload);
@@ -765,7 +746,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
         if(SubscribedAuctions.contains(auction.getAuctionId())){
-            System.out.println("The owner closed the auction " + auction.getAuctionId() + "for the item " + auction.getItem());
+            System.out.println("\nThe owner closed the auction " + auction.getAuctionId() + "for the item " + auction.getItem());
         }
 
 

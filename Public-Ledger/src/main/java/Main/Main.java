@@ -43,7 +43,6 @@ public class Main {
             .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
 
-    //fault mechanism
     //merkle tree
 
     public static void main(String[] args) {
@@ -74,6 +73,8 @@ public class Main {
                 keys = Authentication.loadKeyPair(algorithm);
             } catch (Exception ignored) {}
         }
+
+        System.out.println("Node was instantiated on port " + port);
 
         this.LocalNode = new Node("127.0.0.1",port,20,isBootstrap,keys);
         this.LocalNode.setK(20);
@@ -275,8 +276,10 @@ public class Main {
         Set<String> auction = LocalNode.getValues(key);
 
         if(auction.isEmpty()){
-            System.out.print("\nThat auction is not available anymore.");
-            return;
+           auction = RpcClient.findValue(key, 10).orElse(new HashSet<>());
+            if(auction.isEmpty()){
+                return;
+            }
         }
 
         String auctionJson = auction.iterator().next();
@@ -299,11 +302,6 @@ public class Main {
 
             Bid winningBid = selectedAuction.getWinningBid().orElse(null);
             if (winningBid != null) {
-                System.out.println("ALL bids:");
-                for(Bid bid :selectedAuction.getbids()){
-                    System.out.println(bid.getAmount() + " - " + bid.getBidder());
-                }
-                System.out.println("WInning bid is " + winningBid.getAmount());
                 RpcClient.findNode(winningBid.getBidder()).thenAccept(closeToWinner -> {
                     for (Node node : closeToWinner) {
                         if (node.getId().equals(winningBid.getBidder())) {
@@ -525,7 +523,7 @@ public class Main {
                 RpcClient.store(node.getIpAddress(), node.getPort(), subscribeKey, gson.toJson(value));
             }
             RpcServer.SubscribedAuctions.add(selectedAuction.getAuctionId());
-            System.out.println("Subscribed to auction: " + auctionIdInput + " (Item: " + selectedAuction.getItemName() + ")");
+            System.out.println("\nSubscribed to auction: " + auctionIdInput + " (Item: " + selectedAuction.getItemName() + ")");
         });
     }
 

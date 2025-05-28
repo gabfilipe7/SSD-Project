@@ -295,13 +295,17 @@ public class Node {
 
         for (Block block : blockchain.getChain()) {
             for (Transaction tx : block.getTransactions()) {
-
-                if (tx.getSender() != null && tx.getSender().equals(getPublicKey())) {
+                System.out.println(tx);
+                if (tx.getSender() != null && tx.getSender().equals(getPublicKey()) && (tx.getType().equals(Transaction.TransactionType.AuctionPayment))) {
                     balance -= tx.getAmount();
                 }
 
                 if (tx.getAuctionOwnerId() != null && tx.getAuctionOwnerId().equals(NodeId)) {
                     balance += tx.getAmount();
+                }
+
+                if(tx.getType().equals(Transaction.TransactionType.BlockMinedPayment) && tx.getMiner().equals(getId())){
+                    balance += 10;
                 }
             }
         }

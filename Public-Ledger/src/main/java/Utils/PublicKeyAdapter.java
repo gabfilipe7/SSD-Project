@@ -22,7 +22,7 @@ public class PublicKeyAdapter implements JsonSerializer<PublicKey>, JsonDeserial
             KeyFactory keyFactory = KeyFactory.getInstance("RSA", "BC");
             return keyFactory.generatePublic(spec);
         } catch (Exception e) {
-            throw new JsonParseException("Failed to deserialize PublicKey", e);
+            return null;
         }
     }
 

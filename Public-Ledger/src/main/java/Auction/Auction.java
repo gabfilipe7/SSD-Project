@@ -21,12 +21,6 @@ public class Auction {
         this.IsClosed = false;
     }
 
-    public void placeBid(BigInteger bidder, double amount) {
-        if (!IsClosed ) {
-            Bids.add(new Bid(this.getAuctionId(), bidder, amount, Instant.now()));
-        }
-    }
-
     public void placeBid(Bid bid) {
         Bids.add(bid);
     }
@@ -37,10 +31,6 @@ public class Auction {
 
     public Optional<Bid> getWinningBid() {
         return Bids.stream().max(Comparator.comparingDouble(Bid::getAmount));
-    }
-
-    public  List<Bid> getbids() {
-        return Bids;
     }
 
     public String getItem() { return ItemDescription; }

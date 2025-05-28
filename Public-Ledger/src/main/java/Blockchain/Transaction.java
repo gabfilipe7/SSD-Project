@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.Base64;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.UUID;
 
 public class Transaction {

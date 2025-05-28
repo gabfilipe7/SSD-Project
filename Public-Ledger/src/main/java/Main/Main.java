@@ -18,24 +18,15 @@ import Utils.Utils;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.grpc.netty.shaded.io.netty.handler.ssl.util.SelfSignedCertificate;
-
-import javax.net.ssl.TrustManagerFactory;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.KeyPair;
-import java.security.KeyStore;
 import java.security.PublicKey;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -57,8 +48,6 @@ public class Main {
             .registerTypeAdapter(Instant.class, new InstantAdapter())
             .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
             .create();
-
-    //merkle tree
 
     public static void main(String[] args) {
         boolean isBootstrap = false;
@@ -101,19 +90,13 @@ public class Main {
         Scheduler.scheduleAtFixedRate(() -> refreshRoutingTable(), 0, 30, TimeUnit.SECONDS);
         Scheduler.scheduleAtFixedRate(() -> pingBuckets(), 0, 30, TimeUnit.SECONDS);
 
-/*
-        if(port==5000){
-            isBootstrap = true;
-        }
-*/
-
         this.connectToBootstrapNodes();
 
-       // System.out.print("Would you like to contribute with your computer's resources to help mine new blocks for the Blockchain? (yes/no): ");
-      //  String input = Scanner.nextLine().trim().toLowerCase();
+        System.out.print("Would you like to contribute with your computer's resources to help mine new blocks for the Blockchain? (yes/no): ");
+        String input = Scanner.nextLine().trim().toLowerCase();
 
-        //boolean permission = input.equals("yes") || input.equals("y");
-        this.LocalNode.setIsMiner(true);
+        boolean permission = input.equals("yes") || input.equals("y");
+        this.LocalNode.setIsMiner(permission);
 
         this.RpcClient.synchronizeBlockchain();
         this.LocalNode.calculateLocalNodeBalance(Blockchain);
@@ -134,8 +117,7 @@ public class Main {
             System.out.println("  8) Check Your Balance");
             System.out.println("  9) Check Reputation Table");
             System.out.println("  10) Check Transaction");
- //           System.out.println(" 10) Print Neighbours");
-            System.out.println(" 11) Exit");
+            System.out.println("  11) Exit");
 
             System.out.print("\nYour choice:");
             int choice = this.Scanner.nextInt();
@@ -287,7 +269,6 @@ public class Main {
 
         String key = sha256("auction-info:" +  myAuctions.get(selection).getAuctionId());
 
-     //   Set<String> auction = RpcClient.findValue(key, 10).orElse(new HashSet<>());
         Set<String> auction = LocalNode.getValues(key);
 
         if(auction.isEmpty()){
@@ -495,27 +476,6 @@ public class Main {
         }).start();
     }
 
-    public static SslContext createClientSslContext(String trustedCertPath) throws Exception {
-        // Load the trusted certificate (server's certificate)
-        File certFile = new File(trustedCertPath);
-        CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        X509Certificate trustedCert;
-        try (InputStream in = new FileInputStream(certFile)) {
-            trustedCert = (X509Certificate) cf.generateCertificate(in);
-        }
-
-        // Create a TrustManager that trusts this specific cert
-        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(null, null);
-        keyStore.setCertificateEntry("trustedCert", trustedCert);
-        trustManagerFactory.init(keyStore);
-
-        // Build SSL context
-        return GrpcSslContexts.forClient()
-                .trustManager(trustManagerFactory)
-                .build();
-    }
 
 
     private void subscribeAuction() {

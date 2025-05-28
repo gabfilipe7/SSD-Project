@@ -463,7 +463,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
 
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(true).build());
         } else {
-            System.out.println("Insufficient balance for auction " + auctionId);
+            System.out.println("Insufficient coins for auction " + auctionId);
             responseObserver.onNext(PaymentRequestResponse.newBuilder().setSuccess(false).build());
         }
 
@@ -746,7 +746,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
         if(SubscribedAuctions.contains(bid.getAuctionId())){
-            System.out.println("\nSomeone placed a bid of " + bid.getAmount() + " on auction '" + bid.getAuctionId() + "'.");
+            System.out.println("\n💸 Another user placed a bid of 💰 " + bid.getAmount() + " on auction 🔨 '" + bid.getAuctionId() + "'.");
         }
 
         RpcClient.publishAuctionBid(bid.getAuctionId(), key, payload);
@@ -780,7 +780,7 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
         LocalNode.addKeyWithReplace(auctionKey,auctionJsonUpdated);
 
         if(SubscribedAuctions.contains(auction.getAuctionId())){
-            System.out.println("\nThe owner closed the auction " + auction.getAuctionId() + "for the item " + auction.getItem());
+            System.out.println("\n🔔 The owner has closed the auction " + auction.getAuctionId() + " for the item 🛍️: " + auction.getItem());
         }
 
 
@@ -806,7 +806,6 @@ public class RpcServer extends KademliaServiceGrpc.KademliaServiceImplBase {
     public void handleRemoveCatalog(String key, String payload){
         Set<String> entries = LocalNode.getValues(key);
         if (entries == null || entries.isEmpty()) {
-            System.out.println("No entries found for key: " + key);
             return;
         }
 

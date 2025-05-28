@@ -13,6 +13,8 @@ import com.google.protobuf.ByteString;
 import com.kademlia.grpc.*;
 import io.grpc.ManagedChannel;
 import Kademlia.Node;
+
+import java.io.File;
 import java.security.PublicKey;
 import java.time.Instant;
 import java.util.concurrent.*;
@@ -34,7 +36,6 @@ public class RpcClient {
     private ExecutorService ExecutorService;
     private final Node LocalNode;
     private final Blockchain Blockchain;
-
     Gson gson = new GsonBuilder()
             .registerTypeAdapter(Instant.class, new InstantAdapter())
             .registerTypeHierarchyAdapter(PublicKey.class, new PublicKeyAdapter())
@@ -44,6 +45,9 @@ public class RpcClient {
         this.LocalNode = localNode;
         this.Blockchain = blockchain;
         this.ExecutorService = Executors.newFixedThreadPool(10);
+
+        String currentDir = System.getProperty("user.dir");
+        System.out.println("Current working directory: " + currentDir);
     }
 
     public boolean ping(Node peer) {
@@ -53,13 +57,14 @@ public class RpcClient {
         try {
             SslContext sslContext = GrpcSslContexts
                     .forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                     .build();
 
             channel = NettyChannelBuilder.forAddress(peer.getIpAddress(), peer.getPort())
-                    .useTransportSecurity()
                     .sslContext(sslContext)
+                    .overrideAuthority("127.0.0.1")
                     .build();
+
 
             KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
@@ -189,11 +194,12 @@ public class RpcClient {
         try {
             SslContext sslContext = GrpcSslContexts
                     .forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                     .build();
 
             channel = NettyChannelBuilder.forAddress(peer.getIpAddress(), peer.getPort())
                     .sslContext(sslContext)
+                    .overrideAuthority("127.0.0.1")
                     .build();
 
             KademliaServiceGrpc.KademliaServiceBlockingStub stub =
@@ -246,12 +252,14 @@ public class RpcClient {
     public boolean store(String ip, int port, String key, String value) {
         ManagedChannel channel = null;
         try {
-            SslContext sslContext = GrpcSslContexts.forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+            SslContext sslContext = GrpcSslContexts
+                    .forClient()
+                    .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                     .build();
 
             channel = NettyChannelBuilder.forAddress(ip,port)
                     .sslContext(sslContext)
+                    .overrideAuthority("127.0.0.1")
                     .build();
 
             KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
@@ -315,12 +323,14 @@ public class RpcClient {
                 futures.add(CompletableFuture.runAsync(() -> {
                     ManagedChannel channel = null;
                     try {
-                        SslContext sslContext = GrpcSslContexts.forClient()
-                                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        SslContext sslContext = GrpcSslContexts
+                                .forClient()
+                                .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                                 .build();
 
                         channel = NettyChannelBuilder.forAddress(node.getIpAddress(), node.getPort())
                                 .sslContext(sslContext)
+                                .overrideAuthority("127.0.0.1")
                                 .build();
 
                         KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
@@ -419,14 +429,15 @@ public class RpcClient {
         for (Node neighbor : LocalNode.getAllNeighbours()) {
             ManagedChannel channel = null;
             try {
-                SslContext sslContext = GrpcSslContexts.forClient()
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                SslContext sslContext = GrpcSslContexts
+                        .forClient()
+                        .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                         .build();
 
                 channel = NettyChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())
                         .sslContext(sslContext)
+                        .overrideAuthority("127.0.0.1")
                         .build();
-
                 KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
                 GossipResponse response = stub.withDeadlineAfter(5, TimeUnit.SECONDS)
@@ -474,12 +485,14 @@ public class RpcClient {
             }
             ManagedChannel channel = null;
             try {
-                SslContext sslContext = GrpcSslContexts.forClient()
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                SslContext sslContext = GrpcSslContexts
+                        .forClient()
+                        .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                         .build();
 
                 channel = NettyChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())
                         .sslContext(sslContext)
+                        .overrideAuthority("127.0.0.1")
                         .build();
 
                 KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
@@ -504,12 +517,14 @@ public class RpcClient {
 
     public List<Block> requestBlocksFrom(Node peer, long startIndex) {
         try {
-            SslContext sslContext = GrpcSslContexts.forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+            SslContext sslContext = GrpcSslContexts
+                    .forClient()
+                    .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                     .build();
 
             ManagedChannel channel = NettyChannelBuilder.forAddress(peer.getIpAddress(), peer.getPort())
                     .sslContext(sslContext)
+                    .overrideAuthority("127.0.0.1")
                     .build();
 
             KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
@@ -617,13 +632,16 @@ public class RpcClient {
                     .setAmount(amount)
                     .build();
 
-            SslContext sslContext = GrpcSslContexts.forClient()
-                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+            SslContext sslContext = GrpcSslContexts
+                    .forClient()
+                    .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                     .build();
 
             ManagedChannel channel = NettyChannelBuilder.forAddress(winner.getIpAddress(), winner.getPort())
                     .sslContext(sslContext)
+                    .overrideAuthority("127.0.0.1")
                     .build();
+
 
             KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
 
@@ -658,12 +676,14 @@ public class RpcClient {
 
             ManagedChannel channel = null;
             try {
-                SslContext sslContext = GrpcSslContexts.forClient()
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                SslContext sslContext = GrpcSslContexts
+                        .forClient()
+                        .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                         .build();
 
                 channel = NettyChannelBuilder.forAddress(neighbor.getIpAddress(), neighbor.getPort())
                         .sslContext(sslContext)
+                        .overrideAuthority("127.0.0.1")
                         .build();
 
                 KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
@@ -731,12 +751,14 @@ public class RpcClient {
                     ManagedChannel channel = null;
                     try {
 
-                        SslContext sslContext = GrpcSslContexts.forClient()
-                                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                        SslContext sslContext = GrpcSslContexts
+                                .forClient()
+                                .trustManager(new File("../../Public-Ledger/certs/ca.crt"))
                                 .build();
 
                         channel = NettyChannelBuilder.forAddress(node.getIpAddress(), node.getPort())
                                 .sslContext(sslContext)
+                                .overrideAuthority("127.0.0.1")
                                 .build();
 
                         KademliaServiceGrpc.KademliaServiceBlockingStub stub = KademliaServiceGrpc.newBlockingStub(channel);
